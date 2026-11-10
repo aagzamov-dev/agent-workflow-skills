@@ -1,0 +1,304 @@
+"""Isolated filesystem and local-Git integration checks; no AI clients are launched."""
+
+import importlib.util
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+
+SOURCE = Path(__file__).resolve().parents[1]
+
+
+class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='workflow-test-')
+        self.root = Path(self.temporary.name).resolve()
+        self.repo = self.root / 'checkout with spaces'
+        self.repo.mkdir()
+        for name in ('skills', 'codex', 'claude', 'scripts'):
+            shutil.copytree(SOURCE / name, self.repo / name, ignore=shutil.ignore_patterns('__pycache__'))
+        self.home = self.root / 'isolated home'
+        self.home.mkdir()
+
+    def tearDown(self):
+        # TemporaryDirectory owns this exact absolute root. Python removes Windows
+        # junctions without traversing their source directories.
+        self.temporary.cleanup()
+
+    def command(self, *args, ok=True, repo=None):
+        checkout = repo or self.repo
+        result = subprocess.run(
+            [sys.executable, str(checkout / 'scripts/workflow.py'), *args, '--home', str(self.home)],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
+        return result
+
+    def git(self, repo, *args):
+        result = subprocess.run(
+            ['git', '-C', str(repo), '-c', 'user.name=Workflow Test', '-c',
+             'user.email=workflow-test@example.invalid', *args],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout.strip()
+
+    def initialize(self):
+        self.git(self.repo, 'init', '-b', 'main')
+        self.git(self.repo, 'add', '.')
+        self.git(self.repo, 'commit', '-m', 'Initial fixture')
+
+    def remote_pair(self):
+        self.initialize()
+        remote = self.root / 'remote.git'
+        remote.mkdir()
+        self.git(remote, 'init', '--bare')
+        self.git(self.repo, 'remote', 'add', 'origin', str(remote))
+        self.git(self.repo, 'push', '-u', 'origin', 'main')
+        device = self.root / 'second device'
+        self.git(self.root, 'clone', '-b', 'main', str(remote), str(device))
+        self.command('install', repo=device)
+        return device
+
+    def test_install_reinstall_and_atomic_source_replacement(self):
+        self.command('install')
+        self.command('install')
+        source = self.repo / 'skills/change-impact/SKILL.md'
+        replacement = source.with_suffix('.new')
+        replacement.write_text('Updated through source replacement', encoding='utf-8')
+        os.replace(replacement, source)
+        for folder in ('.agents', '.claude'):
+            installed = self.home / folder / 'skills/change-impact/SKILL.md'
+            self.assertEqual(installed.read_text(), source.read_text())
+        self.assertFalse((self.home / '.agent-workflow-skills/operation.lock').exists())
+
+    def test_conflict_preflight_and_explicit_backup(self):
+        original = self.home / '.agents/skills/engineering-review'
+        original.mkdir(parents=True)
+        (original / 'SKILL.md').write_text('Personal review rules')
+        self.command('install', ok=False)
+        self.assertFalse((self.home / '.agents/skills/change-impact').exists())
+        self.command('install', '--replace-skill', 'engineering-review')
+        backups = list((self.home / '.agent-workflow-skills/backups').rglob('SKILL.md'))
+        self.assertEqual([path.read_text() for path in backups], ['Personal review rules'])
+        self.assertEqual((original / 'SKILL.md').read_bytes(),
+                         (self.repo / 'skills/engineering-review/SKILL.md').read_bytes())
+
+    def test_profile_edit_is_preserved(self):
+        self.command('install')
+        profile = self.home / '.codex/agents/workflow-reviewer.toml'
+        profile.write_text('local profile customization')
+        self.command('install', ok=False)
+        self.assertEqual(profile.read_text(), 'local profile customization')
+
+    def test_saved_selection_and_preflight(self):
+        self.command('install', '--check', '--client', 'claude', '--without-profiles')
+        self.assertFalse((self.home / '.claude').exists())
+        self.command('install', '--client', 'claude', '--without-profiles', '--skip-skill', 'change-impact')
+        self.command('install')
+        self.assertFalse((self.home / '.agents').exists())
+        self.assertFalse((self.home / '.claude/agents').exists())
+        self.assertFalse((self.home / '.claude/skills/change-impact').exists())
+        entrypoint = (self.home / '.claude/CLAUDE.md').read_text(encoding='utf-8')
+        self.assertIn('~/.claude/skills/model-router/SKILL.md', entrypoint)
+        self.assertNotIn('change-impact/SKILL.md', entrypoint)
+
+    def test_bootstrap_backs_up_and_preserves_private_bytes(self):
+        private = b'\xef\xbb\xbf# Personal rules\r\n\r\nRead caf\xc3\xa9 guidance.'
+        codex = self.home / '.codex/AGENTS.md'
+        claude = self.home / '.claude/CLAUDE.md'
+        for path in (codex, claude):
+            path.parent.mkdir()
+            path.write_bytes(private)
+        self.command('install', '--check')
+        self.assertEqual(codex.read_bytes(), private)
+        self.assertEqual(claude.read_bytes(), private)
+        self.command('install')
+        backups = self.home / '.agent-workflow-skills/backups'
+        for path, skill_root in ((codex, b'~/.agents/skills'), (claude, b'~/.claude/skills')):
+            installed = path.read_bytes()
+            self.assertTrue(installed.startswith(private + b'\r\n'))
+            self.assertNotIn(b'\n', installed.replace(b'\r\n', b''))
+            self.assertIn(skill_root + b'/model-router/SKILL.md', installed)
+            self.assertIn(skill_root + b'/change-impact/SKILL.md', installed)
+            self.assertEqual([item.read_bytes() for item in backups.rglob(path.name)], [private])
+            path.write_bytes(installed + b'\r\nNew private text.')
+        before = [path.read_bytes() for path in (codex, claude)]
+        self.command('install')
+        self.assertEqual([path.read_bytes() for path in (codex, claude)], before)
+        self.assertEqual(len(list(backups.rglob('*.md'))), 2)
+
+    def test_codex_follows_nonempty_override_precedence(self):
+        default = self.home / '.codex/AGENTS.md'
+        override = default.with_name('AGENTS.override.md')
+        default.parent.mkdir()
+        default.write_bytes(b'Private default')
+        override.write_bytes(b' \r\n')
+        self.command('install', '--client', 'codex')
+        self.assertEqual(override.read_bytes(), b' \r\n')
+        self.assertIn(b'model-router/SKILL.md', default.read_bytes())
+        override.write_bytes(b'Private override\r\n')
+        self.command('install')
+        self.assertEqual(default.read_bytes(), b'Private default')
+        self.assertTrue(override.read_bytes().startswith(b'Private override\r\n'))
+        self.assertIn(b'model-router/SKILL.md', override.read_bytes())
+        override.unlink()
+        self.command('install')
+        self.assertIn(b'model-router/SKILL.md', default.read_bytes())
+
+    def test_bootstrap_rejects_unowned_or_changed_markers(self):
+        entrypoint = self.home / '.claude/CLAUDE.md'
+        entrypoint.parent.mkdir()
+        malformed = b'Private text\n<!-- agent-workflow-skills:begin -- >\n'
+        entrypoint.write_bytes(malformed)
+        self.assertIn('managed markers', self.command('install', '--check', ok=False).stderr)
+        self.assertEqual(entrypoint.read_bytes(), malformed)
+        self.assertFalse((self.home / '.agents/skills').exists())
+        entrypoint.write_bytes(b'Private text\n')
+        self.command('install')
+        edited = entrypoint.read_bytes().replace(b'For every request', b'Only on weekends')
+        entrypoint.write_bytes(edited)
+        self.assertIn('managed markers', self.command('install', ok=False).stderr)
+        self.assertEqual(entrypoint.read_bytes(), edited)
+
+    def test_version_one_state_without_bootstrap_upgrades(self):
+        self.command('install', '--client', 'codex')
+        entrypoint = self.home / '.codex/AGENTS.md'
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state = json.loads(state_file.read_text(encoding='utf-8'))
+        del state['entrypoint_blocks']
+        state_file.write_text(json.dumps(state), encoding='utf-8')
+        entrypoint.write_bytes(b'Private instructions from before the upgrade')
+        self.command('install')
+        self.assertTrue(entrypoint.read_bytes().startswith(b'Private instructions from before the upgrade'))
+        self.assertIn(b'model-router/SKILL.md', entrypoint.read_bytes())
+        self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
+
+    def test_skipping_both_bootstrap_skills_leaves_entrypoints_alone(self):
+        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact')
+        self.assertFalse((self.home / '.codex/AGENTS.md').exists())
+        self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
+
+    def test_rollback_restores_backup_after_link_failure(self):
+        spec = importlib.util.spec_from_file_location('workflow_test_module', self.repo / 'scripts/workflow.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original = self.home / '.agents/skills/engineering-review'
+        original.mkdir(parents=True)
+        (original / 'SKILL.md').write_text('Personal review rules')
+        state_dir = self.home / '.agent-workflow-skills'
+        with patch.object(module, 'directory_link', side_effect=OSError('injected link failure')):
+            with self.assertRaises(OSError):
+                module.install(self.home, state_dir, ['codex'], ['engineering-review'], False,
+                               None, {'engineering-review'})
+        self.assertEqual((original / 'SKILL.md').read_text(), 'Personal review rules')
+        self.assertFalse((state_dir / 'install.json').exists())
+
+    def test_lock_blocks_concurrent_install(self):
+        state_dir = self.home / '.agent-workflow-skills'
+        state_dir.mkdir()
+        (state_dir / 'operation.lock').write_text('other process')
+        result = self.command('install', ok=False)
+        self.assertIn('Another operation', result.stderr)
+        self.assertFalse((self.home / '.agents').exists())
+
+    def test_failed_state_write_removes_links_and_restores_profiles(self):
+        self.command('install')
+        spec = importlib.util.spec_from_file_location('workflow_rollback_module', self.repo / 'scripts/workflow.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        state_dir = self.home / '.agent-workflow-skills'
+        state = module.read_state(state_dir / 'install.json')
+        profile = self.home / '.codex/agents/workflow-reviewer.toml'
+        previous = profile.read_bytes()
+        source = self.repo / 'codex/agents/workflow-reviewer.toml'
+        source.write_text(source.read_text().replace('"medium"', '"high"'))
+        link = self.home / '.agents/skills/change-impact'
+        module.remove_directory_link(link)
+        write = module.atomic_write
+
+        def fail_state(path, content):
+            if path.name == 'install.json':
+                raise OSError('injected state write failure')
+            write(path, content)
+
+        with patch.object(module, 'atomic_write', side_effect=fail_state):
+            with self.assertRaises(OSError):
+                module.install(self.home, state_dir, state['clients'], state['skills'], True, state, set())
+        self.assertFalse(os.path.lexists(link))
+        self.assertTrue((self.repo / 'skills/change-impact/SKILL.md').exists())
+        self.assertEqual(profile.read_bytes(), previous)
+        self.assertEqual(module.read_state(state_dir / 'install.json'), state)
+
+    def test_failed_state_write_restores_existing_entrypoint_and_removes_new_one(self):
+        spec = importlib.util.spec_from_file_location('workflow_bootstrap_module', self.repo / 'scripts/workflow.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        state_dir = self.home / '.agent-workflow-skills'
+        codex = self.home / '.codex/AGENTS.md'
+        codex.parent.mkdir()
+        original = b'Private instructions\r\nPreserve everything.'
+        codex.write_bytes(original)
+        write = module.atomic_write
+
+        def fail_state(path, content):
+            if path.name == 'install.json':
+                raise OSError('injected state write failure')
+            write(path, content)
+
+        with patch.object(module, 'atomic_write', side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, 'injected state write failure'):
+                module.install(self.home, state_dir, ['codex', 'claude'], ['model-router'], False, None, set())
+        self.assertEqual(codex.read_bytes(), original)
+        self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
+        self.assertFalse((self.home / '.agents/skills/model-router').exists())
+        self.assertFalse((state_dir / 'install.json').exists())
+
+    def test_fast_forward_updates_both_devices_and_profiles(self):
+        device = self.remote_pair()
+        skill = self.repo / 'skills/change-impact/SKILL.md'
+        skill.write_text(skill.read_text() + '\nUpdated upstream.\n')
+        profile = self.repo / 'codex/agents/workflow-reviewer.toml'
+        profile.write_text(profile.read_text().replace('"medium"', '"high"'))
+        installer = self.repo / 'scripts/workflow.py'
+        installer.write_bytes(installer.read_bytes().replace(b'For every request, read', b'On each request, read'))
+        self.git(self.repo, 'add', '.')
+        self.git(self.repo, 'commit', '-m', 'Update fixture')
+        self.git(self.repo, 'push')
+        self.command('update', repo=device)
+        for folder in ('.agents', '.claude'):
+            self.assertIn('Updated upstream.', (self.home / folder / 'skills/change-impact/SKILL.md').read_text())
+        self.assertIn('"high"', (self.home / '.codex/agents/workflow-reviewer.toml').read_text())
+        self.assertIn('On each request, read', (self.home / '.codex/AGENTS.md').read_text())
+
+    def test_dirty_and_missing_upstream_refuse_update(self):
+        self.command('install')
+        self.initialize()
+        result = self.command('update', ok=False)
+        self.assertIn('upstream', result.stderr.lower())
+        (self.repo / 'untracked.txt').write_text('preserve this')
+        result = self.command('update', ok=False)
+        self.assertIn('local changes', result.stderr)
+
+    def test_diverged_branch_refuses_update(self):
+        device = self.remote_pair()
+        (device / 'local.txt').write_text('local')
+        self.git(device, 'add', '.')
+        self.git(device, 'commit', '-m', 'Local change')
+        before = self.git(device, 'rev-parse', 'HEAD')
+        (self.repo / 'remote.txt').write_text('remote')
+        self.git(self.repo, 'add', '.')
+        self.git(self.repo, 'commit', '-m', 'Remote change')
+        self.git(self.repo, 'push')
+        self.command('update', repo=device, ok=False)
+        self.assertEqual(self.git(device, 'rev-parse', 'HEAD'), before)
+
+
+if __name__ == '__main__':
+    unittest.main()
