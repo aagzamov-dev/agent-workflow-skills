@@ -101,6 +101,8 @@ Explicit user model choices take precedence. Routine planning stays on the curre
 
 The parent sends the final changes, relevant callers, requirements, and test evidence to the reviewer. After corrections, recheck the specific findings and affected behavior. Subagents return to the parent for integration. Delegation depends on the host and account, and the parent model stays fixed for the current turn.
 
+The router also sets shared progress reporting for Codex and Claude Code. Choose 10% milestones for normal tasks or 5% for large tasks at the start, with brief done/next updates based on estimated completed scope, not time or ETAs. The parent owns the overall percentage. Workers supply actual milestones. Report only the latest milestone when steps happen together, and reserve 100% until all requested work, including review, tests, and publication, is complete.
+
 ## Verification and contribution
 
 Keep skills focused and descriptions specific. Include concrete user requests when proposing changes, and document the behavior the change should improve. Exercise workflow-preserving changes, ambiguous migrations, existing-user upgrades, unavailable models, and explicit user model choices when validating routing changes.

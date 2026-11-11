@@ -30,3 +30,9 @@ Use one implementation owner per overlapping set of files. The parent sends the 
 Model delegation requires actual host support and available models. If a requested model or agent is unavailable, disclose it and ask before substituting an explicitly required model. If selection was delegated to you, use an available suitable model and state the substitution. Never claim a routing change without an actual dispatch result. A skill cannot replace the parent model for the running turn.
 
 Report the route used and important findings briefly. Evaluate the policy using observed corrections, time, and usage. Do not promise a fixed allowance saving or success on the first attempt.
+
+## Progress updates
+
+For Codex and Claude Code, choose the progress interval at the start. Use 10% milestones of completed scope for normal tasks and 5% milestones for large, multi-stage tasks. Give brief done/next updates, such as "40% - permission checks complete. Checking failure handling next." Percentages are rough estimates of completed scope, not elapsed time, ETAs, or precise measurements. Explain revised estimates when scope changes.
+
+The parent owns one overall percentage in the user chat. Workers report actual milestones to the parent without competing percentages. When several milestones happen together, including on quick tasks, report only the latest reached milestone instead of inventing intermediate messages or activity. Do not report 100% until all requested work, including implementation, review, tests, and publication where requested, is actually complete. Disclose anything blocked or unfinished.
