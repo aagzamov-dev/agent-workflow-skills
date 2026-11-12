@@ -12,8 +12,11 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [engineering-review](skills/engineering-review/SKILL.md) | Review correctness, security, compatibility, and user experience using concrete evidence | "Use engineering-review on this feature and its callers." |
 | [prompt-craft](skills/prompt-craft/SKILL.md) | Turn a rough request into a concise, usable prompt for a named AI tool | "Use prompt-craft to improve this Claude Code prompt." |
 | [model-router](skills/model-router/SKILL.md) | Route implementation and independent review on each request, with strong planning for large tasks | "Use model-router to implement this feature within my existing workflow." |
+| [unslop](skills/unslop/SKILL.md) | Audit and polish an existing UI while preserving its brand and functionality | "Use unslop to polish this dashboard." |
 
-Each skill is self-contained except for the router's optional provider references. These are portable public instructions. Personal rules, project-specific skills, credentials, and installed third-party skills belong in their own managed locations.
+Skills include their supporting references where needed. These are portable public instructions. Personal rules, project-specific skills, credentials, and unrelated installed skills belong in their own managed locations.
+
+Invoke `$unslop` in Codex or `/unslop` in Claude Code, or request UI polish in plain language. It audits the requested screen and proposes a direction before editing. It preserves existing brand assets, components, features, and interaction behavior. Browser use, including headless screenshots and video rendering, requires explicit permission for the current task. Snapshot and story helpers are optional; they need Node.js and Playwright/Chromium, and videos also need ffmpeg. Installation does not install these dependencies. Source inspection remains available without them; report visual verification as incomplete until authorized and performed.
 
 ## Install on a device
 
@@ -38,7 +41,16 @@ python scripts/workflow.py install --replace-skill engineering-review
 
 Backups and installation records stay outside the checkout under `~/.agent-workflow-skills/`. The command prints each backup path. It preserves unrelated skills and the user-authored text in global instructions. Ordinary failures roll back completed installation actions. If the process is forcibly terminated, inspect its backup and lock files before retrying; remove a stale `operation.lock` only after confirming the earlier process has exited.
 
-On the first installation, select one client with `--client codex` or `--client claude`, omit profiles with `--without-profiles`, or omit individual skills with `--skip-skill NAME`. Choices are saved and reused on subsequent install and update commands. New skill folders added upstream are not automatically selected. To change the selection, inspect and manually remove this installation's links, managed profiles and marked instruction blocks. Keep the backups, remove `install.json`, and install with the new choices. Never recursively delete a link target or the checkout.
+On the first installation, select one client with `--client codex` or `--client claude`, omit profiles with `--without-profiles`, or omit individual skills with `--skip-skill NAME`. Choices are saved and reused on subsequent install and update commands. New skill folders added upstream are not automatically selected. Add one explicitly with `install --add-skill NAME`; existing client, profile, and other skill choices remain unchanged. To change clients, remove skills, or change profile selection, inspect and manually remove this installation's links, managed profiles and marked instruction blocks. Keep the backups, remove `install.json`, and install with the new choices. Never recursively delete a link target or the checkout.
+
+For an existing installation, add Unslop with the updated installer from this checkout:
+
+```bash
+python scripts/workflow.py install --add-skill unslop --check
+python scripts/workflow.py install --add-skill unslop
+```
+
+If either canonical skill destination already contains a different `unslop`, compare it first, then add `--replace-skill unslop` to back it up and replace it. A separate legacy copy under `~/.codex/skills/unslop` is outside this installer's ownership: move it to a backup outside skill discovery before installing, preserving any customizations. Do not delete a directory link's target. Restart both clients after installation and check discovery; the installer does not test live client activation.
 
 Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. The block directs the client to read `model-router` on every request and `change-impact` before meaningful implementation, for each of those skills selected for installation. Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options and gains the block on the next install or refresh.
 
@@ -109,6 +121,8 @@ Keep skills focused and descriptions specific. Include concrete user requests wh
 
 Run `python -m unittest discover -s tests -v` for isolated filesystem and local-Git integration checks. They exercise links, managed instruction blocks, backups and conflicts, repeat installation, profile protection, rollback, and updating from a local remote. The tests use temporary homes and repositories and do not launch AI clients.
 
+Run `node --test tests/test_unslop_story.mjs` for isolated story-helper checks covering asset containment and temporary frame ownership. These checks do not launch a browser or run ffmpeg.
+
 Windows verification covers native directory junctions and the Git Bash copy snippet. macOS/Linux link behavior requires verification on those platforms. Live activation and model delegation must be checked in each installed client. Public model names and client features can change.
 
 ## References
@@ -120,4 +134,4 @@ Windows verification covers native directory junctions and the Git Bash copy sni
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Repository code and original skills are MIT. See [LICENSE](LICENSE). The vendored [Unslop skill and its resources](skills/unslop/SKILL.md), adapted from [Damir Sokolovsky's unslop](https://github.com/heydamir/unslop), remain under [CC BY 4.0](skills/unslop/LICENSE); retain their attribution and adaptation notice when redistributing them.

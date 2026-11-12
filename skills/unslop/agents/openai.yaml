@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unslop"
+  short_description: "Polish UI while preserving its brand and functionality"
+  default_prompt: "Use $unslop to polish this screen while preserving its existing brand and functionality."

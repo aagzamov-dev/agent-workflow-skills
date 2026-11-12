@@ -76,6 +76,9 @@ class WorkflowTests(unittest.TestCase):
         for folder in ('.agents', '.claude'):
             installed = self.home / folder / 'skills/change-impact/SKILL.md'
             self.assertEqual(installed.read_text(), source.read_text())
+            for relative in ('SKILL.md', 'references/story-video.md', 'scripts/snapshot.mjs'):
+                self.assertEqual((self.home / folder / 'skills/unslop' / relative).read_bytes(),
+                                 (self.repo / 'skills/unslop' / relative).read_bytes())
         self.assertFalse((self.home / '.agent-workflow-skills/operation.lock').exists())
 
     def test_conflict_preflight_and_explicit_backup(self):
@@ -133,6 +136,88 @@ class WorkflowTests(unittest.TestCase):
         self.command('install')
         self.assertEqual([path.read_bytes() for path in (codex, claude)], before)
         self.assertEqual(len(list(backups.rglob('*.md'))), 2)
+
+    def test_add_skill_preserves_saved_choices_and_preflight(self):
+        self.command('install', '--client', 'claude', '--without-profiles',
+                     '--skip-skill', 'unslop', '--skip-skill', 'change-impact')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        previous = state_file.read_bytes()
+        instructions = (self.home / '.claude/CLAUDE.md').read_bytes()
+        self.command('install', '--add-skill', 'unslop', '--check')
+        self.assertEqual(state_file.read_bytes(), previous)
+        self.assertFalse((self.home / '.claude/skills/unslop').exists())
+        self.command('install', '--add-skill', 'unslop')
+        self.command('install', '--add-skill', 'unslop')
+        state = json.loads(state_file.read_text())
+        self.assertEqual(state['clients'], ['claude'])
+        self.assertFalse(state['profiles'])
+        self.assertNotIn('change-impact', state['skills'])
+        self.assertEqual(state['skills'].count('unslop'), 1)
+        self.assertFalse((self.home / '.agents').exists())
+        self.assertEqual((self.home / '.claude/CLAUDE.md').read_bytes(), instructions)
+        self.assertEqual((self.home / '.claude/skills/unslop/SKILL.md').read_bytes(),
+                         (self.repo / 'skills/unslop/SKILL.md').read_bytes())
+
+    def test_refresh_does_not_select_new_skills_implicitly(self):
+        self.command('install', '--skip-skill', 'unslop')
+        self.command('install')
+        state = json.loads((self.home / '.agent-workflow-skills/install.json').read_text())
+        self.assertNotIn('unslop', state['skills'])
+        for folder in ('.agents', '.claude'):
+            self.assertFalse((self.home / folder / 'skills/unslop').exists())
+
+    def test_add_skill_conflict_preserves_state_then_explicitly_backs_up(self):
+        self.command('install', '--skip-skill', 'unslop')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        previous = state_file.read_bytes()
+        original = self.home / '.claude/skills/unslop'
+        original.mkdir()
+        (original / 'SKILL.md').write_text('Local unslop')
+        self.command('install', '--add-skill', 'unslop', ok=False)
+        self.assertEqual(state_file.read_bytes(), previous)
+        self.assertFalse((self.home / '.agents/skills/unslop').exists())
+        self.assertEqual((original / 'SKILL.md').read_text(), 'Local unslop')
+        self.command('install', '--add-skill', 'unslop', '--replace-skill', 'unslop')
+        backups = list((self.home / '.agent-workflow-skills/backups').rglob('unslop/SKILL.md'))
+        self.assertEqual([item.read_text() for item in backups], ['Local unslop'])
+        for folder in ('.agents', '.claude'):
+            self.assertEqual((self.home / folder / 'skills/unslop/SKILL.md').read_bytes(),
+                             (self.repo / 'skills/unslop/SKILL.md').read_bytes())
+
+    def test_add_skill_rejects_invalid_and_conflicting_options(self):
+        for args in [('install', '--add-skill', '../unslop'),
+                     ('install', '--add-skill', 'unslop', '--skip-skill', 'unslop'),
+                     ('update', '--add-skill', 'unslop')]:
+            self.command(*args, ok=False)
+        self.assertFalse((self.home / '.agent-workflow-skills/install.json').exists())
+        self.assertFalse((self.home / '.agents').exists())
+
+    def test_adding_skill_rolls_back_links_backups_and_selection_on_failure(self):
+        self.command('install', '--skip-skill', 'unslop')
+        spec = importlib.util.spec_from_file_location('workflow_add_module', self.repo / 'scripts/workflow.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        state_dir = self.home / '.agent-workflow-skills'
+        state_file = state_dir / 'install.json'
+        previous = state_file.read_bytes()
+        state = module.read_state(state_file)
+        original = self.home / '.claude/skills/unslop'
+        original.mkdir()
+        (original / 'SKILL.md').write_text('Local unslop')
+        write = module.atomic_write
+
+        def fail_state(path, content):
+            if path == state_file:
+                raise OSError('injected selection write failure')
+            write(path, content)
+
+        with patch.object(module, 'atomic_write', side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, 'injected selection write failure'):
+                module.install(self.home, state_dir, state['clients'], state['skills'] + ['unslop'],
+                               state['profiles'], state, {'unslop'})
+        self.assertEqual(state_file.read_bytes(), previous)
+        self.assertFalse((self.home / '.agents/skills/unslop').exists())
+        self.assertEqual((original / 'SKILL.md').read_text(), 'Local unslop')
 
     def test_codex_follows_nonempty_override_precedence(self):
         default = self.home / '.codex/AGENTS.md'

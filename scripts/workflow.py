@@ -372,11 +372,12 @@ def main():
     parser.add_argument('--home', type=Path, help='Installation home (default: current user)')
     parser.add_argument('--client', choices=['codex', 'claude', 'both'], default=None)
     parser.add_argument('--skip-skill', action='append', default=[])
+    parser.add_argument('--add-skill', action='append', default=[], help='Add a skill to saved installation choices')
     parser.add_argument('--replace-skill', action='append', default=[], help='Back up a conflicting skill before linking it')
     parser.add_argument('--without-profiles', action='store_true')
     parser.add_argument('--check', action='store_true', help='Preflight installation without changing installed files')
     args = parser.parse_args()
-    if args.command == 'update' and (args.client or args.skip_skill or args.replace_skill or args.without_profiles or args.check):
+    if args.command == 'update' and (args.client or args.skip_skill or args.add_skill or args.replace_skill or args.without_profiles or args.check):
         parser.error('update uses saved installation choices; install manages options')
     home = (args.home or Path.home()).expanduser().resolve()
     if args.home is None:
@@ -393,11 +394,13 @@ def main():
             refresh = update(home, state_dir, state)
         else:
             available = sorted(path.parent.name for path in (REPO / 'skills').glob('*/SKILL.md'))
-            unknown = (set(args.skip_skill) | set(args.replace_skill)) - set(available)
+            unknown = (set(args.skip_skill) | set(args.add_skill) | set(args.replace_skill)) - set(available)
             if unknown:
                 parser.error('Unknown skill names: ' + ', '.join(sorted(unknown)))
             if set(args.skip_skill) & set(args.replace_skill):
                 parser.error('A skill cannot be both skipped and replaced.')
+            if set(args.skip_skill) & set(args.add_skill):
+                parser.error('A skill cannot be both skipped and added.')
             clients = ['codex', 'claude']
             skills = [name for name in available if name not in args.skip_skill]
             profiles = not args.without_profiles
@@ -405,6 +408,7 @@ def main():
                 clients, skills, profiles = state['clients'], state['skills'], state['profiles']
                 if args.client or args.skip_skill or args.without_profiles:
                     parser.error('This home already has saved choices. Reinstall without selection flags.')
+                skills = sorted(set(skills) | set(args.add_skill))
             elif args.client and args.client != 'both':
                 clients = [args.client]
             install(home, state_dir, clients, skills, profiles, state, set(args.replace_skill), args.check)
