@@ -146,6 +146,8 @@ def add_managed_block(content, client, skills):
         lines.append(f'- For every request, read `{skill_root}/model-router/SKILL.md` and apply its routing policy.')
     if 'change-impact' in skills:
         lines.append(f'- Before meaningful implementation, read `{skill_root}/change-impact/SKILL.md`.')
+    if 'unslop' in skills:
+        lines.append(f'- Before any UI design work, including new screens, design implementation, or visual polish within a feature, read `{skill_root}/unslop/SKILL.md` and apply it. Follow the current project\'s components and visual conventions; do not redesign unrelated working screens.')
     lines.extend(['', BLOCK_END.decode('ascii'), ''])
     block = separator + newline.join(line.encode('ascii') for line in lines)
     record = {'hash': hashlib.sha256(block).hexdigest(), 'separator': separator.decode('ascii')}
@@ -154,7 +156,7 @@ def add_managed_block(content, client, skills):
 
 def plan_entrypoints(home, clients, skills, state):
     previous_blocks = (state or {}).get('entrypoint_blocks', {})
-    wanted = {'model-router', 'change-impact'}.intersection(skills)
+    wanted = {'model-router', 'change-impact', 'unslop'}.intersection(skills)
     plans = []
     blocks = {}
     for client in clients:

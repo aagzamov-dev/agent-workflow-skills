@@ -1,4 +1,4 @@
 interface:
   display_name: "Unslop"
-  short_description: "Polish UI while preserving its brand and functionality"
-  default_prompt: "Use $unslop to polish this screen while preserving its existing brand and functionality."
+  short_description: "Build and polish UI that fits the current project"
+  default_prompt: "Use $unslop to build or polish this UI while following the current project's design and components."

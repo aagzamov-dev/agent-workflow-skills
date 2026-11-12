@@ -1,6 +1,6 @@
 ---
 name: unslop
-description: Polish or redesign an existing UI when the user requests unslop, visual cleanup, or a less generic AI-looking interface. Audit spacing, color, icons, copy, type, layout, details, visuals, and motion while preserving the existing brand and functionality. Use for UI polish tasks, not unrelated engineering or automatic redesign of every screen.
+description: Use for UI design work, including building new screens, pages, dialogs, or components, implementing a supplied design, and polishing existing UI. Apply spacing, color, icons, copy, type, layout, details, visuals, and motion principles while following the current project's components and visual conventions. Exclude backend-only and other nonvisual engineering work.
 license: CC-BY-4.0
 metadata:
   author: Damir Sokolovsky
@@ -10,7 +10,7 @@ metadata:
 
 # Unslop
 
-Adapted from [unslop](https://github.com/heydamir/unslop) by Damir Sokolovsky ([@heydamir](https://x.com/heydamir)), under [CC BY 4.0](LICENSE), revision `97daa3eb365670ea3f87ed85356cbfcee18105a5`. This version adds permission and brand safeguards, narrows activation, moves optional video guidance into a reference, confines story asset reads, and isolates temporary render frames. Preserve this attribution in copies and adaptations.
+Adapted from [unslop](https://github.com/heydamir/unslop) by Damir Sokolovsky ([@heydamir](https://x.com/heydamir)), under [CC BY 4.0](LICENSE), revision `97daa3eb365670ea3f87ed85356cbfcee18105a5`. This version supports new-screen creation and design implementation, adds permission and project-style safeguards, moves optional video guidance into a reference, confines story asset reads, and isolates temporary render frames. Preserve this attribution in copies and adaptations.
 
 Vibecoded UI fails in the same predictable ways. Every surface glows, every label has an emoji, spacing is whatever the model typed that day, and the copy shouts. Unslopping fixes the craft and keeps the product. The features, content and order of sections stay. What changes is that every size, color, word and image becomes deliberate.
 
@@ -22,9 +22,24 @@ Work like a designer doing a redline pass, one layer at a time, across the whole
 
 ## Scope and permissions
 
-Use `$unslop` in Codex or `/unslop` in Claude Code, or select it for an explicitly requested UI polish task. Loading this skill does not authorize implementation, browser use, dependency installation, paid generation, publishing, or broader redesign. Honor applicable project rules and existing approvals. Reuse existing components and tokens; keep changes within the requested screen. Audit and propose a direction first, then proceed within the authorized scope.
+Use this skill whenever the authorized task includes designing, building, implementing a supplied design, or polishing UI, even if the user does not name Unslop. Examples include "build a settings screen", "do this design", and "polish this dashboard". It also applies to UI design work required within a larger feature. Use `$unslop` in Codex or `/unslop` in Claude Code to invoke it explicitly. Do not apply it to backend-only or other nonvisual work.
+
+Loading this skill does not authorize implementation, browser use, dependency installation, paid generation, publishing, or broader redesign. Honor applicable project rules and existing approvals. Keep changes within the requested screen or component; leave unrelated working screens alone.
 
 Existing brand conventions, design-system rules, accessibility requirements, and useful product behavior take precedence over every pass value and checklist item below. Do not add fonts, icon packages, services, or other dependencies without authorization. Use illustrative data only in explicitly requested mockups; preserve production data and claims.
+
+## Choose the workflow
+
+Start with the project: read its instructions and relevant module documentation, then inspect nearby screens, shared components, tokens, fonts, icons, layout, routes, translations, and interaction patterns. Extend those conventions with the smallest change that fits the task. A new screen in a working product should feel like it belongs there; Unslop is not permission to introduce a new theme or restyle shared components.
+
+**New screen or supplied design:**
+
+1. Establish the screen's purpose, content, primary actions, and required states from the request. Preserve the supplied design's structure and visual intent. If it materially conflicts with the existing project, explain the conflict and resolve it before making a broad stylistic change.
+2. Reuse the existing shell, components, tokens, and behavior. Choose a new visual direction only where the project and supplied design leave one undefined. Briefly state the approach; continue when implementation is already authorized and it follows established conventions. Obtain agreement before introducing a new brand direction or wider redesign.
+3. Apply the nine principles below while building the first version. Use project values ahead of the example values. Cover loading, empty, error, disabled, keyboard-focus, and responsive states where relevant, without inventing features or changing unrelated screens.
+4. Check the result against the requested design, adjacent screens, and applicable checklist items. Use authorized non-live checks; browser inspection still requires explicit permission for the current task. Report what was verified and any visual verification gap. Do not create an intentionally rough version just to polish it afterward.
+
+**Existing UI:** follow the audit and polish workflow below. Keep its features and useful visual conventions, and scale the changes to the actual issues found.
 
 ## What good looks like
 
@@ -36,7 +51,7 @@ Existing brand conventions, design-system rules, accessibility requirements, and
 
 Which visual styles tend to work, and which fail, is in [references/visuals.md](references/visuals.md). Finished examples to learn from are in [references/refs.md](references/refs.md), and code treatments like drawing an image in glyphs are in [references/effects.md](references/effects.md).
 
-## Run it
+## Polish existing UI
 
 1. **Look at the screen.** Find its rendering files, applicable instructions, and existing design system. Use supplied screenshots and source first. Launch or control a browser, live application, screenshot tool, or headless renderer only with explicit permission for that action in the current task. A request to polish UI does not grant browser permission. Without it, continue with source inspection and report visual verification as incomplete.
    - Only a link to a live site, no code? After browser use is explicitly authorized, save the page with `node <skill folder>/scripts/snapshot.mjs <url> unslop/original.html` and work on a copy of that file. A local HTML file works in place of the URL. Add `--dark` or `--light` to match the theme the user sees. It also saves `original.live.png`, a screenshot of the live page, so render the saved copy and compare the two before you start. The script scrolls through the page first, so lazy-loaded sections and images are captured. Animated backgrounds drawn by scripts do not survive, so describe them in the audit from the live page.
@@ -47,7 +62,7 @@ Which visual styles tend to work, and which fail, is in [references/visuals.md](
    - **Heavy slop**, many signs across color, type, icons and copy. Run the full process below.
    - **Light slop**, a screen that is mostly designed with a few signs left. Polish mode. Fix only what the audit found, take the direction from the existing brand instead of inventing a new one, and keep the palette, type, layout and visual. Bigger ideas, like a moment that is missing or a scene for the hero, go into the report as suggestions, not changes.
    - **No slop.** Say so plainly and suggest two or three small refinements at most, with exact values. Apply them only if the user agrees, and stop there. Never change a good screen just to make it different.
-4. **Set the direction and stop.** Write the five lines described below. Show the audit and the direction to the user and wait for their answer before editing, since changing the direction later means redoing everything. If you have a tool for asking the user questions, ask through it, otherwise ask in plain text and stop. Skip the wait only when the user already said to just do it.
+4. **Set the direction.** Briefly describe the audit and approach using the direction below. Proceed when implementation is already authorized and the approach follows the existing project or approved design. Obtain agreement before a new visual direction, brand change, or wider redesign; avoid an extra approval gate for routine polish already in scope.
 5. **Fix in nine passes, in order.** Finish a pass across the whole screen before starting the next. When nearly every line changes, plan the passes in order and then write the new screen in one go, as long as every pass is applied. Spacing comes first because everything else reads differently once the rhythm is right. Copy comes before type and layout because the length of the headline decides its size and where it sits. Visuals and motion come last because they should fit a screen that already works without them.
 6. **Check.** Run the checklist at the end of this file. When browser use is authorized, render again and compare with the audit list. Otherwise check source and report the visual verification gap. Fix remaining issues within the approved scope.
 7. **Report** the direction, a few lines per pass about what changed, and any image prompt you wrote.
@@ -59,7 +74,7 @@ Exact values for every pass live in [references/tokens.md](references/tokens.md)
 
 ## Direction
 
-Before touching anything, write five short lines. Derive them from what the page says the product does and who it is for. Never from what is trending.
+When a visual direction is needed, write five short lines. For an established product, summarize its existing direction rather than inventing another one. For a new product without conventions or a supplied design, derive the direction from its purpose and audience. Never derive it from what is trending.
 
 - **Product.** What it does and for whom, in one plain sentence.
 - **Character.** Two or three concrete words, like `calm, exact, a little warm` or `fast, technical, playful`. Words like clean, modern, sleek, minimal and premium are not allowed, because they describe every template.

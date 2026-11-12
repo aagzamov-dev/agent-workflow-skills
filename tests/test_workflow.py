@@ -130,6 +130,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotIn(b'\n', installed.replace(b'\r\n', b''))
             self.assertIn(skill_root + b'/model-router/SKILL.md', installed)
             self.assertIn(skill_root + b'/change-impact/SKILL.md', installed)
+            self.assertIn(skill_root + b'/unslop/SKILL.md', installed)
             self.assertEqual([item.read_bytes() for item in backups.rglob(path.name)], [private])
             path.write_bytes(installed + b'\r\nNew private text.')
         before = [path.read_bytes() for path in (codex, claude)]
@@ -145,6 +146,7 @@ class WorkflowTests(unittest.TestCase):
         instructions = (self.home / '.claude/CLAUDE.md').read_bytes()
         self.command('install', '--add-skill', 'unslop', '--check')
         self.assertEqual(state_file.read_bytes(), previous)
+        self.assertEqual((self.home / '.claude/CLAUDE.md').read_bytes(), instructions)
         self.assertFalse((self.home / '.claude/skills/unslop').exists())
         self.command('install', '--add-skill', 'unslop')
         self.command('install', '--add-skill', 'unslop')
@@ -154,7 +156,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn('change-impact', state['skills'])
         self.assertEqual(state['skills'].count('unslop'), 1)
         self.assertFalse((self.home / '.agents').exists())
-        self.assertEqual((self.home / '.claude/CLAUDE.md').read_bytes(), instructions)
+        refreshed = (self.home / '.claude/CLAUDE.md').read_bytes()
+        self.assertNotIn(b'/unslop/SKILL.md', instructions)
+        self.assertIn(b'~/.claude/skills/unslop/SKILL.md', refreshed)
         self.assertEqual((self.home / '.claude/skills/unslop/SKILL.md').read_bytes(),
                          (self.repo / 'skills/unslop/SKILL.md').read_bytes())
 
@@ -165,6 +169,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn('unslop', state['skills'])
         for folder in ('.agents', '.claude'):
             self.assertFalse((self.home / folder / 'skills/unslop').exists())
+        for relative in ('.codex/AGENTS.md', '.claude/CLAUDE.md'):
+            self.assertNotIn('unslop/SKILL.md', (self.home / relative).read_text())
 
     def test_add_skill_conflict_preserves_state_then_explicitly_backs_up(self):
         self.command('install', '--skip-skill', 'unslop')
@@ -201,6 +207,8 @@ class WorkflowTests(unittest.TestCase):
         state_file = state_dir / 'install.json'
         previous = state_file.read_bytes()
         state = module.read_state(state_file)
+        entrypoints = {path: (self.home / path).read_bytes()
+                       for path in ('.codex/AGENTS.md', '.claude/CLAUDE.md')}
         original = self.home / '.claude/skills/unslop'
         original.mkdir()
         (original / 'SKILL.md').write_text('Local unslop')
@@ -216,6 +224,8 @@ class WorkflowTests(unittest.TestCase):
                 module.install(self.home, state_dir, state['clients'], state['skills'] + ['unslop'],
                                state['profiles'], state, {'unslop'})
         self.assertEqual(state_file.read_bytes(), previous)
+        for path, content in entrypoints.items():
+            self.assertEqual((self.home / path).read_bytes(), content)
         self.assertFalse((self.home / '.agents/skills/unslop').exists())
         self.assertEqual((original / 'SKILL.md').read_text(), 'Local unslop')
 
@@ -265,10 +275,56 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(b'model-router/SKILL.md', entrypoint.read_bytes())
         self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
 
-    def test_skipping_both_bootstrap_skills_leaves_entrypoints_alone(self):
-        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact')
+    def test_skipping_all_bootstrap_skills_leaves_entrypoints_alone(self):
+        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
+                     '--skip-skill', 'unslop')
         self.assertFalse((self.home / '.codex/AGENTS.md').exists())
         self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
+
+    def test_unslop_only_manages_both_client_entrypoints(self):
+        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
+                     '--skip-skill', 'engineering-review', '--skip-skill', 'prompt-craft',
+                     '--without-profiles')
+        for relative, skill_root in (('.codex/AGENTS.md', '~/.agents/skills'),
+                                     ('.claude/CLAUDE.md', '~/.claude/skills')):
+            content = (self.home / relative).read_text()
+            self.assertIn(skill_root + '/unslop/SKILL.md', content)
+            self.assertNotIn('model-router/SKILL.md', content)
+            self.assertNotIn('change-impact/SKILL.md', content)
+        self.command('install')
+
+    def test_refresh_upgrades_old_blocks_without_touching_private_text(self):
+        # Model the previous installer, which selected Unslop without its directive.
+        installer = self.repo / 'scripts/workflow.py'
+        current = installer.read_text()
+        old = current.replace(
+            "    if 'unslop' in skills:\n" + next(
+                line + '\n' for line in current.splitlines()
+                if 'lines.append' in line and '/unslop/SKILL.md' in line), '')
+        self.assertNotEqual(old, current)
+        installer.write_text(old)
+        self.command('install')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        old_state = json.loads(state_file.read_text())
+        self.assertIn('unslop', old_state['skills'])
+        paths = [self.home / relative for relative in ('.codex/AGENTS.md', '.claude/CLAUDE.md')]
+        for path in paths:
+            self.assertNotIn(b'/unslop/SKILL.md', path.read_bytes())
+            path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\r\n')
+        before = [path.read_bytes() for path in paths]
+        installer.write_text(current)
+        self.command('install', '--check')
+        self.assertEqual([path.read_bytes() for path in paths], before)
+        self.assertEqual(json.loads(state_file.read_text()), old_state)
+        self.command('install')
+        for path in paths:
+            content = path.read_bytes()
+            self.assertTrue(content.startswith(b'Private prefix\r\n'))
+            self.assertTrue(content.endswith(b'Private suffix\r\n'))
+            self.assertEqual(content.count(b'/unslop/SKILL.md'), 1)
+        new_state = json.loads(state_file.read_text())
+        self.assertEqual(new_state['skills'], old_state['skills'])
+        self.assertNotEqual(new_state['entrypoint_blocks'], old_state['entrypoint_blocks'])
 
     def test_rollback_restores_backup_after_link_failure(self):
         spec = importlib.util.spec_from_file_location('workflow_test_module', self.repo / 'scripts/workflow.py')
