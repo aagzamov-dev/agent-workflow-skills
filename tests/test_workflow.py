@@ -79,6 +79,9 @@ class WorkflowTests(unittest.TestCase):
             for relative in ('SKILL.md', 'references/story-video.md', 'scripts/snapshot.mjs'):
                 self.assertEqual((self.home / folder / 'skills/unslop' / relative).read_bytes(),
                                  (self.repo / 'skills/unslop' / relative).read_bytes())
+            for relative in ('SKILL.md', 'agents/openai.yaml'):
+                self.assertEqual((self.home / folder / 'skills/explain-clearly' / relative).read_bytes(),
+                                 (self.repo / 'skills/explain-clearly' / relative).read_bytes())
         self.assertFalse((self.home / '.agent-workflow-skills/operation.lock').exists())
 
     def test_conflict_preflight_and_explicit_backup(self):
@@ -131,6 +134,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(skill_root + b'/model-router/SKILL.md', installed)
             self.assertIn(skill_root + b'/change-impact/SKILL.md', installed)
             self.assertIn(skill_root + b'/unslop/SKILL.md', installed)
+            self.assertIn(skill_root + b'/explain-clearly/SKILL.md', installed)
             self.assertEqual([item.read_bytes() for item in backups.rglob(path.name)], [private])
             path.write_bytes(installed + b'\r\nNew private text.')
         before = [path.read_bytes() for path in (codex, claude)]
@@ -277,21 +281,124 @@ class WorkflowTests(unittest.TestCase):
 
     def test_skipping_all_bootstrap_skills_leaves_entrypoints_alone(self):
         self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
-                     '--skip-skill', 'unslop')
+                     '--skip-skill', 'unslop', '--skip-skill', 'explain-clearly')
         self.assertFalse((self.home / '.codex/AGENTS.md').exists())
         self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
 
     def test_unslop_only_manages_both_client_entrypoints(self):
         self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
                      '--skip-skill', 'engineering-review', '--skip-skill', 'prompt-craft',
-                     '--without-profiles')
+                     '--skip-skill', 'explain-clearly', '--without-profiles')
         for relative, skill_root in (('.codex/AGENTS.md', '~/.agents/skills'),
                                      ('.claude/CLAUDE.md', '~/.claude/skills')):
             content = (self.home / relative).read_text()
             self.assertIn(skill_root + '/unslop/SKILL.md', content)
             self.assertNotIn('model-router/SKILL.md', content)
             self.assertNotIn('change-impact/SKILL.md', content)
+            self.assertNotIn('explain-clearly/SKILL.md', content)
         self.command('install')
+
+    def test_explanation_only_manages_both_client_entrypoints(self):
+        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
+                     '--skip-skill', 'engineering-review', '--skip-skill', 'prompt-craft',
+                     '--skip-skill', 'unslop', '--without-profiles')
+        state = json.loads((self.home / '.agent-workflow-skills/install.json').read_text())
+        self.assertEqual(state['skills'], ['explain-clearly'])
+        for relative, skill_root in (('.codex/AGENTS.md', '~/.agents/skills'),
+                                     ('.claude/CLAUDE.md', '~/.claude/skills')):
+            content = (self.home / relative).read_text()
+            self.assertIn(skill_root + '/explain-clearly/SKILL.md', content)
+            self.assertNotIn('model-router/SKILL.md', content)
+            self.assertNotIn('unslop/SKILL.md', content)
+        self.command('install')
+
+    def test_skipped_explanation_stays_unselected_on_refresh(self):
+        self.command('install', '--skip-skill', 'explain-clearly')
+        self.command('install')
+        state = json.loads((self.home / '.agent-workflow-skills/install.json').read_text())
+        self.assertNotIn('explain-clearly', state['skills'])
+        for relative in ('.codex/AGENTS.md', '.claude/CLAUDE.md'):
+            self.assertNotIn('explain-clearly/SKILL.md', (self.home / relative).read_text())
+        for folder in ('.agents', '.claude'):
+            self.assertFalse((self.home / folder / 'skills/explain-clearly').exists())
+
+    def test_add_explanation_preserves_selection_private_text_and_preflight(self):
+        self.command('install', '--skip-skill', 'explain-clearly', '--without-profiles')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        previous_state = state_file.read_bytes()
+        state = json.loads(previous_state)
+        paths = [self.home / name for name in ('.codex/AGENTS.md', '.claude/CLAUDE.md')]
+        for path in paths:
+            path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\r\n')
+        before = [path.read_bytes() for path in paths]
+        self.command('install', '--add-skill', 'explain-clearly', '--check')
+        self.assertEqual(state_file.read_bytes(), previous_state)
+        self.assertEqual([path.read_bytes() for path in paths], before)
+        self.assertFalse((self.home / '.agents/skills/explain-clearly').exists())
+        self.command('install', '--add-skill', 'explain-clearly')
+        self.command('install')
+        installed = json.loads(state_file.read_bytes())
+        self.assertEqual(installed['clients'], state['clients'])
+        self.assertEqual(installed['profiles'], state['profiles'])
+        self.assertEqual(set(installed['skills']), set(state['skills']) | {'explain-clearly'})
+        for path in paths:
+            content = path.read_bytes()
+            self.assertTrue(content.startswith(b'Private prefix\r\n'))
+            self.assertTrue(content.endswith(b'Private suffix\r\n'))
+            self.assertEqual(content.count(b'/explain-clearly/SKILL.md'), 1)
+        for folder in ('.agents', '.claude'):
+            self.assertEqual((self.home / folder / 'skills/explain-clearly/SKILL.md').read_bytes(),
+                             (self.repo / 'skills/explain-clearly/SKILL.md').read_bytes())
+
+    def test_failed_explanation_add_restores_entrypoints_selection_and_links(self):
+        self.command('install', '--skip-skill', 'explain-clearly', '--without-profiles')
+        spec = importlib.util.spec_from_file_location('workflow_explain_module', self.repo / 'scripts/workflow.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        state_dir = self.home / '.agent-workflow-skills'
+        state_file = state_dir / 'install.json'
+        previous = state_file.read_bytes()
+        state = module.read_state(state_file)
+        entrypoints = {path: (self.home / path).read_bytes()
+                       for path in ('.codex/AGENTS.md', '.claude/CLAUDE.md')}
+        write = module.atomic_write
+
+        def fail_state(path, content):
+            if path == state_file:
+                raise OSError('injected explanation selection write failure')
+            write(path, content)
+
+        with patch.object(module, 'atomic_write', side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, 'injected explanation selection write failure'):
+                module.install(self.home, state_dir, state['clients'],
+                               state['skills'] + ['explain-clearly'], False, state, set())
+        self.assertEqual(state_file.read_bytes(), previous)
+        for path, content in entrypoints.items():
+            self.assertEqual((self.home / path).read_bytes(), content)
+        for folder in ('.agents', '.claude'):
+            self.assertFalse((self.home / folder / 'skills/explain-clearly').exists())
+
+    def test_refresh_upgrades_old_explanation_blocks(self):
+        installer = self.repo / 'scripts/workflow.py'
+        current = installer.read_text()
+        old = current.replace(
+            "    if 'explain-clearly' in skills:\n" + next(
+                line + '\n' for line in current.splitlines()
+                if 'lines.append' in line and '/explain-clearly/SKILL.md' in line), '')
+        self.assertNotEqual(old, current)
+        installer.write_text(old)
+        self.command('install', '--without-profiles')
+        paths = [self.home / name for name in ('.codex/AGENTS.md', '.claude/CLAUDE.md')]
+        for path in paths:
+            self.assertNotIn(b'/explain-clearly/SKILL.md', path.read_bytes())
+            path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\r\n')
+        installer.write_text(current)
+        self.command('install')
+        for path in paths:
+            content = path.read_bytes()
+            self.assertTrue(content.startswith(b'Private prefix\r\n'))
+            self.assertTrue(content.endswith(b'Private suffix\r\n'))
+            self.assertEqual(content.count(b'/explain-clearly/SKILL.md'), 1)
 
     def test_refresh_upgrades_old_blocks_without_touching_private_text(self):
         # Model the previous installer, which selected Unslop without its directive.

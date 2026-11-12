@@ -148,6 +148,8 @@ def add_managed_block(content, client, skills):
         lines.append(f'- Before meaningful implementation, read `{skill_root}/change-impact/SKILL.md`.')
     if 'unslop' in skills:
         lines.append(f'- Before any UI design work, including new screens, design implementation, or visual polish within a feature, read `{skill_root}/unslop/SKILL.md` and apply it. Follow the current project\'s components and visual conventions; do not redesign unrelated working screens.')
+    if 'explain-clearly' in skills:
+        lines.append(f'- When the user asks for an explanation, why or how something works, a comparison or before/after, or says they do not understand, read `{skill_root}/explain-clearly/SKILL.md` and apply it. Use simple words and helpful diagrams or before/after directly in chat.')
     lines.extend(['', BLOCK_END.decode('ascii'), ''])
     block = separator + newline.join(line.encode('ascii') for line in lines)
     record = {'hash': hashlib.sha256(block).hexdigest(), 'separator': separator.decode('ascii')}
@@ -156,7 +158,7 @@ def add_managed_block(content, client, skills):
 
 def plan_entrypoints(home, clients, skills, state):
     previous_blocks = (state or {}).get('entrypoint_blocks', {})
-    wanted = {'model-router', 'change-impact', 'unslop'}.intersection(skills)
+    wanted = {'model-router', 'change-impact', 'unslop', 'explain-clearly'}.intersection(skills)
     plans = []
     blocks = {}
     for client in clients:

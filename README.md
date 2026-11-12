@@ -13,8 +13,11 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [prompt-craft](skills/prompt-craft/SKILL.md) | Turn a rough request into a concise, usable prompt for a named AI tool | "Use prompt-craft to improve this Claude Code prompt." |
 | [model-router](skills/model-router/SKILL.md) | Route implementation and independent review on each request, with strong planning for large tasks | "Use model-router to implement this feature within my existing workflow." |
 | [unslop](skills/unslop/SKILL.md) | Build new screens, implement supplied designs, and polish UI using the current project's conventions | "Build this settings screen to fit the existing app." |
+| [explain-clearly](skills/explain-clearly/SKILL.md) | Explain in simple words, with useful diagrams and before/after comparisons directly in chat | "Explain how this works; I do not understand the current explanation." |
 
 Skills include their supporting references where needed. These are portable public instructions. Personal rules, project-specific skills, credentials, and unrelated installed skills belong in their own managed locations.
+
+Explain Clearly applies when the user asks for an explanation, why or how something works, a comparison or before/after, or says they do not understand. It answers the main question first, defines necessary terms, and uses concrete examples, small chat diagrams, or tables when helpful. It adapts the depth to the question rather than forcing a template or making every answer short. Explanations stay directly in chat; HTML, files, and external visuals are not generated unless requested. Invoke `$explain-clearly` in Codex or `/explain-clearly` in Claude Code explicitly if needed.
 
 Unslop applies to UI design work: new screens, pages, dialogs and components, supplied design implementation, and visual polish, including UI work within a larger feature. Requests such as "build a settings screen" or "do this design" do not need to name the skill. The managed global instructions direct both clients to read it before that work; backend-only and other nonvisual tasks are outside its scope. Invoke `$unslop` in Codex or `/unslop` in Claude Code explicitly if needed.
 
@@ -54,9 +57,16 @@ python scripts/workflow.py install --add-skill unslop --check
 python scripts/workflow.py install --add-skill unslop
 ```
 
+To add Explain Clearly to an existing installation while keeping the other saved choices:
+
+```bash
+python scripts/workflow.py install --add-skill explain-clearly --check
+python scripts/workflow.py install --add-skill explain-clearly
+```
+
 If either canonical skill destination already contains a different `unslop`, compare it first, then add `--replace-skill unslop` to back it up and replace it. A separate legacy copy under `~/.codex/skills/unslop` is outside this installer's ownership: move it to a backup outside skill discovery before installing, preserving any customizations. Do not delete a directory link's target. Restart both clients after installation and check discovery; the installer does not test live client activation.
 
-Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. For selected skills, the block directs the client to read `model-router` on every request, `change-impact` before meaningful implementation, and `unslop` before UI design work. Skipping Unslop omits its directive. Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options; run `python scripts/workflow.py install` after pulling this revision to refresh older blocks, or use the existing update command. Client adherence still requires a fresh session or an explicit instruction reload and is not guaranteed by file installation alone.
+Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. For selected skills, the block directs the client to read `model-router` on every request, `change-impact` before meaningful implementation, `unslop` before UI design work, and `explain-clearly` for explanation requests or confusion. Skipping a skill omits its directive. Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options; run `python scripts/workflow.py install` after pulling this revision to refresh older blocks, or use the existing update command. Client adherence still requires a fresh session or an explicit instruction reload and is not guaranteed by file installation alone.
 
 Start a fresh client session after setup and verify skill and agent discovery. An existing session may still hold earlier instructions. Ask it to reread the global entrypoint and linked skills if you need to continue there, or restart and resume when the client supports it. Invoke `$change-impact` in Codex or `/change-impact` in Claude Code. The optional profiles are named `workflow-worker`, `workflow-planner`, and `workflow-reviewer`.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain Clearly"
+  short_description: "Simple explanations with examples and chat diagrams"
+  default_prompt: "Use $explain-clearly to explain this in simple words, with a small diagram or before/after comparison when helpful."
