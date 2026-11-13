@@ -7,6 +7,10 @@ description: Route each request to the appropriate model for implementation, lar
 
 Classify each request on the current model. Honor explicit model, effort, budget, and delegation choices. A routing decision does not grant implementation authorization. Subagents perform their assigned role and return to the parent.
 
+Apply the question-first gate before dispatch: an active question or request for explanation/advice, including "Explain why this uses cursors, then implement" without a question mark, requires answering first. If proposed or ongoing work is involved, ask permission to proceed and wait for explicit confirmation even when implementation was also requested or previously approved. Purely informational requests with no proposed or ongoing work need only an answer; quoted/code questions and direct fix instructions without a request for explanation/advice do not trigger the gate. Read-only inspection needed to answer is allowed.
+
+While that gate is pending, dispatch no new implementation or mutations; it overrides independent-work and no-repeat-approval guidance. Propagate the pause to running implementing workers using the host's pause/interrupt mechanism at a safe boundary. Collect their state and disclose completed changes and any uninterruptible in-flight work; do not promise instantaneous stoppage or roll back completed work. Resume only after the user's explicit confirmation, with an explicit resume instruction to each worker.
+
 | Task | Route |
 | --- | --- |
 | Routine question, explanation, or ordinary investigation | Current model |
