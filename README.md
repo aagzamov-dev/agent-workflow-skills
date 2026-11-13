@@ -11,7 +11,7 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [change-impact](skills/change-impact/SKILL.md) | Explain user-visible consequences before implementation and obtain agreement for workflow changes or compatibility breaks | "Use change-impact before adding offline installation." |
 | [engineering-review](skills/engineering-review/SKILL.md) | Review correctness, security, compatibility, and user experience using concrete evidence | "Use engineering-review on this feature and its callers." |
 | [prompt-craft](skills/prompt-craft/SKILL.md) | Turn a rough request into a concise, usable prompt for a named AI tool | "Use prompt-craft to improve this Claude Code prompt." |
-| [model-router](skills/model-router/SKILL.md) | Route implementation and independent review on each request, with strong planning for large tasks | "Use model-router to implement this feature within my existing workflow." |
+| [model-router](skills/model-router/SKILL.md) | Route implementation and one independent final review per task, with strong planning for unresolved consequential decisions | "Use model-router to implement this feature within my existing workflow." |
 | [unslop](skills/unslop/SKILL.md) | Build new screens, implement supplied designs, and polish UI using the current project's conventions | "Build this settings screen to fit the existing app." |
 | [explain-clearly](skills/explain-clearly/SKILL.md) | Explain in simple words, with useful diagrams and before/after comparisons directly in chat | "Explain how this works; I do not understand the current explanation." |
 
@@ -121,13 +121,15 @@ Copied skills need manual refresh after each pull. They are outside the linked i
 | Work | Route |
 | --- | --- |
 | Routine question, explanation, or ordinary investigation | Current model |
-| Any implementation, including a small edit | Sol, followed by one independent Astra review |
-| Large task with a multi-module architectural decision, complex migration, or ambiguous multi-stage design | Astra plans if the parent lacks a strong inline plan. Sol implements and Astra reviews independently. |
+| Any implementation, including small, documentation, and configuration edits | Sol, followed by one independent Astra final review with depth matched to risk |
+| Unresolved consequential architecture or migration decision without an adequate parent plan | Astra plans read-only. Feature size alone does not trigger planning. Sol implements and Astra reviews once at the end. |
 | Explicit review request | Independent Astra review |
 
-Explicit user model choices take precedence. Routine planning stays on the current model. Use Astra for other work only at the user's explicit request. Claude Code maps implementation to Sonnet and large-task planning and independent review to Opus. The Claude Code profiles cannot invoke Codex or Astra automatically. The Codex planner starts at low effort and reviewer at medium effort.
+Explicit user model choices take precedence. Routine questions, explanations, investigation, preparation, and planning stay on the current model. Honor explicit Astra planning and review requests; use Astra for other work only at the user's explicit request. Claude Code maps implementation to Sonnet and consequential planning and independent final review to Opus. The Claude Code profiles cannot invoke Codex or Astra automatically. The Codex planner starts at low effort and reviewer at medium effort.
 
-The parent sends the final changes, relevant callers, requirements, and test evidence to the reviewer. After corrections, recheck the specific findings and affected behavior. Subagents return to the parent for integration. Delegation depends on the host and account, and the parent model stays fixed for the current turn.
+The task boundary is the agreed outcome, not each file, edit, check, installation, commit, or follow-up; unrelated work must not be grouped to evade review. Finish implementation, relevant tests, obvious fixes, and requested configuration or installation refresh before the one independent final review. Give the reviewer compact isolated context by default, without a full conversation fork: scope, acceptance criteria, constraints, the actual diff and identified snapshot, relevant caller locations, and test evidence. The reviewer may inspect source and expand scope when evidence warrants it. Findings should be concise, without quotas or exhaustive audits for tiny changes.
+
+After review, the parent/Sol (Sonnet in Claude Code) makes authorized corrections and verifies affected behavior, clearly identifying changes since the reviewed snapshot. Corrections and routine follow-ups within the same task do not trigger another full review automatically. If unresolved consequential uncertainty needs another pass, explain the evidence gap and obtain user approval; an explicit additional-review request supplies approval. Missing required evidence prevents a readiness claim. Subagents return to the parent for integration. Delegation depends on the host and account, and the parent model stays fixed for the current turn. These controls are not a hard token cap or guaranteed savings.
 
 The router also sets shared progress reporting for Codex and Claude Code. Choose 10% milestones for normal tasks or 5% for large tasks at the start, with brief done/next updates based on estimated completed scope, not time or ETAs. The parent owns the overall percentage. Workers supply actual milestones. Report only the latest milestone when steps happen together, and reserve 100% until all requested work, including review, tests, and publication, is complete.
 

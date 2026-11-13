@@ -1,6 +1,6 @@
 ---
 name: model-router
-description: Route each request to the appropriate model for implementation, large-task planning, or independent review. Honor explicit user model choices and keep routine answers on the current model.
+description: Route implementation, consequential planning, and independent final review. Honor explicit user model choices and keep routine answers on the current model.
 ---
 
 # Model Router
@@ -14,11 +14,11 @@ While that gate is pending, dispatch no new implementation or mutations; it over
 | Task | Route |
 | --- | --- |
 | Routine question, explanation, or ordinary investigation | Current model |
-| Authorized implementation, including small edits and documentation changes | Sol implements in Codex. An independent Astra reviewer checks the final implementation. |
-| Large implementation with a multi-module architectural decision, complex migration, or ambiguous multi-stage design | Astra plans first when the parent has not already produced a strong inline plan. Use the same implementation and review route. |
+| Authorized implementation, including small edits, documentation, and configuration | Sol implements in Codex, followed by one independent Astra final review with depth matched to risk. |
+| Unresolved consequential architecture or migration decision without an adequate parent plan | Astra plans read-only. Feature size alone does not trigger planning. Use the same implementation and final-review route. |
 | Explicit review request | Independent Astra review of the requested scope |
 
-Do routine planning on the current model. When the parent is already the selected strong planner, plan inline. Honor explicit requests for Astra planning at any task size and dispatch a separate planner if the user requests one. Use Astra for other work only when the user explicitly asks. Claude Code uses the corresponding Sonnet and Opus roles described below.
+Investigate, prepare, and do routine planning on the current model. When the parent has an adequate plan, use it. Honor explicit requests for Astra planning or review at any task size and dispatch a separate planner if requested. Use Astra for other work only when the user explicitly asks. Claude Code uses the corresponding Sonnet and Opus roles described below.
 
 Before implementation, provide a short explanation of the change, workflow effects, effects on existing users, and tradeoffs. Obtain agreement for a workflow change or compatibility break unless that specific consequence is already approved. Unknown compatibility requires investigation before claiming it is preserved.
 
@@ -27,13 +27,15 @@ Read the relevant provider reference only when dispatching agents.
 - For Codex, read [Codex routing](references/codex.md).
 - For Claude Code, read [Claude Code routing](references/claude.md).
 
-Pass the goal, acceptance criteria, authorized scope, important constraints, and relevant source locations to each worker. Provide reviewers access to actual changes, relevant callers, and test evidence. Ask planners for decisions, tradeoffs, and verification criteria rather than exhaustive implementation scripts. Parent agents remain responsible for integrating the result.
+Pass the goal, acceptance criteria, authorized scope, important constraints, and relevant source locations to each worker. Give reviewers compact isolated context by default, without a full conversation fork: scope, acceptance criteria, constraints, the actual diff and identified snapshot, relevant caller locations, and test evidence. Allow source inspection and evidence-led scope expansion. Ask planners for decisions, tradeoffs, and verification criteria rather than exhaustive implementation scripts. Parent agents remain responsible for integrating the result.
 
-Use one implementation owner per overlapping set of files. The parent sends the final implementation to one independent reviewer even when the parent already uses Astra. After fixes, recheck the specific findings and affected behavior. Keep each reviewer read-only and return findings to the parent for integration. Do not spawn recursive chains of planners or reviewers.
+Use one implementation owner per overlapping set of files. A task is the agreed outcome, not each file, edit, check, installation, commit, or follow-up; do not group unrelated work to evade review. Finish implementation, relevant tests, obvious fixes, and any requested configuration or installation refresh before the single independent final review, even when the parent already uses Astra. Keep reviewers read-only; request concise findings with depth matched to risk, without finding quotas or an exhaustive audit for tiny changes. Do not spawn recursive chains of planners or reviewers.
+
+After review, the parent/Sol fixes authorized findings and verifies the affected behavior, clearly distinguishing the reviewed snapshot from subsequent corrections. Do not automatically repeat a full review for corrections or routine checks, installation, commits, or follow-ups within the same task. If consequential uncertainty remains and another Astra pass is needed, explain the evidence gap and obtain user approval first; a user-requested additional review supplies that approval. Do not claim readiness while required evidence is missing.
 
 Model delegation requires actual host support and available models. If a requested model or agent is unavailable, disclose it and ask before substituting an explicitly required model. If selection was delegated to you, use an available suitable model and state the substitution. Never claim a routing change without an actual dispatch result. A skill cannot replace the parent model for the running turn.
 
-Report the route used and important findings briefly. Evaluate the policy using observed corrections, time, and usage. Do not promise a fixed allowance saving or success on the first attempt.
+Report the route used and important findings briefly. These workflow controls are not a hard token cap or guaranteed savings. Evaluate observed corrections, time, and usage; do not promise success on the first attempt.
 
 ## Progress updates
 
