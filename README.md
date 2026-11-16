@@ -11,7 +11,7 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [change-impact](skills/change-impact/SKILL.md) | Explain user-visible consequences before implementation and obtain agreement for workflow changes or compatibility breaks | "Use change-impact before adding offline installation." |
 | [engineering-review](skills/engineering-review/SKILL.md) | Review correctness, security, compatibility, and user experience using concrete evidence | "Use engineering-review on this feature and its callers." |
 | [prompt-craft](skills/prompt-craft/SKILL.md) | Turn a rough request into a concise, usable prompt for a named AI tool | "Use prompt-craft to improve this Claude Code prompt." |
-| [model-router](skills/model-router/SKILL.md) | Route implementation and one independent final review per task, with strong planning for unresolved consequential decisions | "Use model-router to implement this feature within my existing workflow." |
+| [model-router](skills/model-router/SKILL.md) | Keep Sol/Sonnet as parent, delegate bounded work economically, and use stronger review for large or risky work | "Use model-router to implement this feature within my existing workflow." |
 | [unslop](skills/unslop/SKILL.md) | Build new screens, implement supplied designs, and polish UI using the current project's conventions | "Build this settings screen to fit the existing app." |
 | [explain-clearly](skills/explain-clearly/SKILL.md) | Explain in simple words, with useful diagrams and before/after comparisons directly in chat | "Explain how this works; I do not understand the current explanation." |
 
@@ -70,7 +70,7 @@ If either canonical skill destination already contains a different `unslop`, com
 
 Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. For selected skills, the block directs the client to read `model-router` on every request, `change-impact` before meaningful implementation, `unslop` before UI design work, and `explain-clearly` for explanation requests or confusion. Skipping a skill omits its directive. Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options; run `python scripts/workflow.py install` after pulling this revision to refresh older blocks, or use the existing update command. Client adherence still requires a fresh session or an explicit instruction reload and is not guaranteed by file installation alone.
 
-Start a fresh client session after setup and verify skill and agent discovery. An existing session may still hold earlier instructions. Ask it to reread the global entrypoint and linked skills if you need to continue there, or restart and resume when the client supports it. Invoke `$change-impact` in Codex or `/change-impact` in Claude Code. The optional profiles are named `workflow-worker`, `workflow-planner`, and `workflow-reviewer`.
+Start a fresh client session after setup and verify skill and agent discovery. An existing session may still hold earlier instructions. Ask it to reread the global entrypoint and linked skills if you need to continue there, or restart and resume when the client supports it. Invoke `$change-impact` in Codex or `/change-impact` in Claude Code. The optional profiles are named `workflow-light-worker`, `workflow-worker`, `workflow-planner`, and `workflow-reviewer`.
 
 The installer targets standard per-user locations and refuses custom `CODEX_HOME` or `CLAUDE_CONFIG_DIR` overrides. For custom client layouts, configure links manually. `--home PATH` explicitly chooses a separate standard-layout installation root and is useful for isolated verification.
 
@@ -118,20 +118,46 @@ Copied skills need manual refresh after each pull. They are outside the linked i
 
 ## Suggested routing
 
-| Work | Route |
-| --- | --- |
-| Routine question, explanation, or ordinary investigation | Current model |
-| Any implementation, including small, documentation, and configuration edits | Sol, followed by one independent Astra final review with depth matched to risk |
-| Unresolved consequential architecture or migration decision without an adequate parent plan | Astra plans read-only. Feature size alone does not trigger planning. Sol implements and Astra reviews once at the end. |
-| Explicit review request | Independent Astra review |
+Select **Sol as the usual Codex parent** and **Sonnet as the usual Claude Code parent**. The parent understands the task, chooses whether delegation helps, integrates changes, and checks the result. Installation does not change the selected parent or client settings; the router cannot replace a running parent model. Explicit user model, effort, budget, and review choices take precedence.
 
-Explicit user model choices take precedence. Routine questions, explanations, investigation, preparation, and planning stay on the current model. Honor explicit Astra planning and review requests; use Astra for other work only at the user's explicit request. Claude Code maps implementation to Sonnet and consequential planning and independent final review to Opus. The Claude Code profiles cannot invoke Codex or Astra automatically. The Codex planner starts at low effort and reviewer at medium effort.
+| Work | Codex | Claude Code | Final check |
+| --- | --- | --- | --- |
+| Questions, routine investigation/planning, tiny edits | Sol parent directly | Sonnet parent directly | Parent checks; no automatic agents |
+| Simple bounded work worth a handoff | Terra light worker | Haiku light worker | Parent reviews actual changes and checks |
+| Ordinary fix or feature | Sol directly; Sol worker only when useful | Sonnet directly; Sonnet worker only when useful | Parent reviews and verifies |
+| Large or high-risk change | Sol owns work | Sonnet owns work | One independent Astra/Opus review after implementation and checks |
+| Explicit review request, even plain "review" | Parent gathers evidence, then Astra reviews | Parent gathers evidence, then Opus reviews | Honor any explicitly chosen different reviewer or self-review |
+| Unresolved consequential architecture/migration decision | Astra planner only when needed | Opus planner only when needed | Implementation review still depends on size/risk |
 
-The task boundary is the agreed outcome, not each file, edit, check, installation, commit, or follow-up; unrelated work must not be grouped to evade review. Finish implementation, relevant tests, obvious fixes, and requested configuration or installation refresh before the one independent final review. Give the reviewer compact isolated context by default, without a full conversation fork: scope, acceptance criteria, constraints, the actual diff and identified snapshot, relevant caller locations, and test evidence. The reviewer may inspect source and expand scope when evidence warrants it. Findings should be concise, without quotas or exhaustive audits for tiny changes.
+Large means substantial interacting behavior, cross-module contracts, or changes too complex for a reliable focused parent check. Risk includes permissions, sensitive data, destructive operations, persistence/migrations, signing/updaters, compatibility, and difficult concurrency/recovery. A small sensitive change can need strong review; many mechanical edits do not automatically need it. Reclassify as the actual scope grows. Review routing does not depend on the parent's model or client mode, and never overrides read-only restrictions.
 
-After review, the parent/Sol (Sonnet in Claude Code) makes authorized corrections and verifies affected behavior, clearly identifying changes since the reviewed snapshot. Corrections and routine follow-ups within the same task do not trigger another full review automatically. If unresolved consequential uncertainty needs another pass, explain the evidence gap and obtain user approval; an explicit additional-review request supplies approval. Missing required evidence prevents a readiness claim. Subagents return to the parent for integration. Delegation depends on the host and account, and the parent model stays fixed for the current turn. These controls are not a hard token cap or guaranteed savings.
+Routine planning stays with the parent. Do not automatically invoke Astra, Opus, or Fable for tiny work or simple plans, and do not build a planner/worker/reviewer chain by default. Terra/Haiku handles clear bounded tasks only when delegation is worth its preparation and review overhead. Escalate to Sol/Sonnet on demonstrated complexity or failed checks beyond the worker's scope, rather than repeated blind attempts. Use one implementation owner per overlapping file set; parallel workers are not automatic.
 
-The router also sets shared progress reporting for Codex and Claude Code. Choose 10% milestones for normal tasks or 5% for large tasks at the start, with brief done/next updates based on estimated completed scope, not time or ETAs. The parent owns the overall percentage. Workers supply actual milestones. Report only the latest milestone when steps happen together, and reserve 100% until all requested work, including review, tests, and publication, is complete.
+| Profile | Codex model | Claude Code alias |
+| --- | --- | --- |
+| `workflow-light-worker` | `gpt-6.1-terra`, low effort | `haiku` |
+| `workflow-worker` | `gpt-6.1-sol`, medium effort | `sonnet` |
+| `workflow-planner` | `gpt-6-astra`, low effort | `opus` |
+| `workflow-reviewer` | `gpt-6-astra`, medium effort | `opus` |
+
+Use normal speed and increase reasoning only when warranted. Verify model access and actual dispatch in each host; Claude aliases/overrides can affect resolution. Claude profiles do not invoke Codex models. Haiku is the lightweight Claude role; Fable is not configured. See [Claude model selection](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+
+For explicit reviews, Sol/Sonnet gathers scope, requirements, actual changes, relevant callers, and test evidence before handing off to Astra/Opus. It should not duplicate a full audit first. Give workers and reviewers compact isolated context rather than a full conversation fork. Review evidence identifies the snapshot and separates staged, unstaged, and relevant untracked changes; branch reviews include the agreed base and branch diff. Reviewers may inspect source and expand scope when evidence warrants it.
+
+Finish implementation, relevant checks, obvious fixes, and requested installation refresh before the one independent final review of large/high-risk work. Explicit standalone reviews can assess existing or unfinished changes and report gaps. The parent handles authorized corrections and verifies affected behavior, identifying changes since the reviewed snapshot. Corrections and routine follow-ups do not automatically trigger another full review; another pass for consequential uncertainty requires explaining the gap and obtaining approval. Missing required evidence prevents a readiness claim. Small/ordinary implementation gets a parent check unless the user requests a review. Routing does not grant permission to edit, commit, deploy, or run live tests.
+
+### Refresh an existing installation
+
+The existing commands and saved client/skill/profile choices remain supported. Run these Bash commands from this checkout to refresh copied profiles and add the lightweight worker for clients with profiles enabled:
+
+```bash
+python scripts/workflow.py install --check
+python scripts/workflow.py install
+```
+
+Linked skills already reflect this checkout; copied profiles require that refresh. The installer preserves local profile customizations by refusing conflicts, and `--without-profiles` installations stay without profiles. No user data migration or new dependency is required. No automatic model-setting change is made. Start a fresh session or explicitly reload instructions after refreshing; existing chats do not automatically adopt the policy or change parent models. Client discovery, model access, and live routing still need verification. Other devices need this revision through the existing Git/update workflow; uncommitted changes are not available there.
+
+This policy aims to reduce unnecessary passes and context duplication. It is not a hard usage cap or guaranteed saving; compare actual usage and corrections on similar tasks.
 
 ## Verification and contribution
 

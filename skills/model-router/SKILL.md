@@ -1,44 +1,42 @@
 ---
 name: model-router
-description: Route implementation, consequential planning, and independent final review. Honor explicit user model choices and keep routine answers on the current model.
+description: Choose direct work, lightweight workers, and stronger planning or review according to task complexity and risk, keeping Sol/Sonnet as the usual parent.
 ---
 
 # Model Router
 
-Classify each request on the current model. Honor explicit model, effort, budget, and delegation choices. A routing decision does not grant implementation authorization. Subagents perform their assigned role and return to the parent.
+Use Sol as the usual Codex parent and Sonnet as the usual Claude Code parent. The parent understands the task, decides the route, integrates changes, and checks the result. A skill cannot switch the running parent model; honor explicit model, effort, budget, and delegation choices. Do not change the user's selected model or client settings automatically.
 
-Apply the question-first gate before dispatch: an active question or request for explanation/advice, including "Explain why this uses cursors, then implement" without a question mark, requires answering first. If proposed or ongoing work is involved, ask permission to proceed and wait for explicit confirmation even when implementation was also requested or previously approved. Purely informational requests with no proposed or ongoing work need only an answer; quoted/code questions and direct fix instructions without a request for explanation/advice do not trigger the gate. Read-only inspection needed to answer is allowed.
+## Choose the smallest useful route
 
-While that gate is pending, dispatch no new implementation or mutations; it overrides independent-work and no-repeat-approval guidance. Propagate the pause to running implementing workers using the host's pause/interrupt mechanism at a safe boundary. Collect their state and disclose completed changes and any uninterruptible in-flight work; do not promise instantaneous stoppage or roll back completed work. Resume only after the user's explicit confirmation, with an explicit resume instruction to each worker.
+Classify after a brief inspection of the request and relevant source. Consider uncertainty, coupled behavior, sensitive boundaries, and verification difficulty, not just line or file count. Reassess if the actual changes become substantially larger or riskier.
 
-| Task | Route |
-| --- | --- |
-| Routine question, explanation, or ordinary investigation | Current model |
-| Authorized implementation, including small edits, documentation, and configuration | Sol implements in Codex, followed by one independent Astra final review with depth matched to risk. |
-| Unresolved consequential architecture or migration decision without an adequate parent plan | Astra plans read-only. Feature size alone does not trigger planning. Use the same implementation and final-review route. |
-| Explicit review request | Independent Astra review of the requested scope |
+| Work | Implementation | Final check |
+| --- | --- | --- |
+| Questions, explanations, routine investigation and planning | Parent directly | Check the answer against evidence; no automatic agents |
+| Tiny obvious edit, such as a label or typo | Parent directly; a handoff usually costs more than it saves | Parent checks the diff and relevant behavior |
+| Simple bounded task with clear acceptance checks, worth delegating | One lightweight worker: Terra in Codex, Haiku in Claude Code | Parent reviews the actual diff and check results |
+| Ordinary fix or feature | Parent directly; one Sol/Sonnet worker only when isolation or a substantial bounded subtask justifies the handoff | Parent reviews the result and runs relevant checks |
+| Large or high-risk change | Parent owns planning and implementation, delegating bounded work when useful | One independent Astra/Opus review after implementation and checks |
+| Explicit review request, including plain "review" | Parent gathers scope, actual changes, relevant callers, and test evidence first | Astra/Opus reviews that scope, even when small, unless the user explicitly chooses another reviewer or self-review |
 
-Investigate, prepare, and do routine planning on the current model. When the parent has an adequate plan, use it. Honor explicit requests for Astra planning or review at any task size and dispatch a separate planner if requested. Use Astra for other work only when the user explicitly asks. Claude Code uses the corresponding Sonnet and Opus roles described below.
+Large work has substantial interacting behavior, cross-module contracts, or a change set too complex for a reliable focused parent check. Many mechanical edits alone do not make work high risk. High-risk examples include authentication/authorization, sensitive data, destructive operations, persistence/migrations, signing/updaters, public compatibility, and difficult concurrency or recovery. A one-line change can qualify. Do not reduce review strength merely because the parent is already a strong model or the client is in a different mode; permission and read-only restrictions still apply.
 
-Before implementation, provide a short explanation of the change, workflow effects, effects on existing users, and tradeoffs. Obtain agreement for a workflow change or compatibility break unless that specific consequence is already approved. Unknown compatibility requires investigation before claiming it is preserved.
+Parent planning is the default at every size. Use Astra/Opus planning only for an unresolved consequential architecture or migration decision that the parent cannot adequately resolve, or when explicitly requested. Size alone does not require a planner. Never invoke Astra, Opus, or Fable for routine planning or tiny edits automatically.
 
-Read the relevant provider reference only when dispatching agents.
+## Keep handoffs economical
 
-- For Codex, read [Codex routing](references/codex.md).
-- For Claude Code, read [Claude Code routing](references/claude.md).
+- Do not delegate merely to use a cheaper model. Compare the likely work with the cost of preparing, supervising, and reviewing it. Use one implementation owner per overlapping file set; no automatic parallel workers or planner/worker/reviewer chain.
+- Read only the relevant provider reference when dispatch is needed: [Codex](references/codex.md) or [Claude Code](references/claude.md).
+- Give workers compact isolated context: goal, authorized scope, acceptance checks, constraints, and relevant source locations. Do not fork the full conversation by default. Workers return changes, actual checks, and unresolved issues; they do not dispatch further agents.
+- Escalate Terra/Haiku work to Sol/Sonnet when source inspection reveals complexity, sensitive behavior, or failed checks beyond the worker's scope. Report the evidence; avoid repeated blind attempts. Reclassify the final-review requirement if risk grows.
+- The parent gathers review evidence rather than performing a second full audit before the reviewer. Supply the actual diff and identified snapshot, relevant callers, requirements, and check results. Separate staged, unstaged, and relevant untracked changes; include the agreed base for branch reviews. Let the reviewer inspect source and expand scope when evidence warrants it.
+- Review once per agreed outcome, after implementation, relevant checks, obvious fixes, and any requested installation refresh. Do not treat every file, follow-up, or correction as a new task, or combine unrelated work to evade review. Parent/Sol/Sonnet applies authorized corrections and verifies them, identifying changes since the reviewed snapshot. Another strong review for unresolved consequential uncertainty requires explaining the gap and obtaining approval; an explicit additional-review request supplies it.
 
-Pass the goal, acceptance criteria, authorized scope, important constraints, and relevant source locations to each worker. Give reviewers compact isolated context by default, without a full conversation fork: scope, acceptance criteria, constraints, the actual diff and identified snapshot, relevant caller locations, and test evidence. Allow source inspection and evidence-led scope expansion. Ask planners for decisions, tradeoffs, and verification criteria rather than exhaustive implementation scripts. Parent agents remain responsible for integrating the result.
+## Boundaries and reporting
 
-Use one implementation owner per overlapping set of files. A task is the agreed outcome, not each file, edit, check, installation, commit, or follow-up; do not group unrelated work to evade review. Finish implementation, relevant tests, obvious fixes, and any requested configuration or installation refresh before the single independent final review, even when the parent already uses Astra. Keep reviewers read-only; request concise findings with depth matched to risk, without finding quotas or an exhaustive audit for tiny changes. Do not spawn recursive chains of planners or reviewers.
+Routing does not authorize implementation. Apply applicable authorization rules before dispatch, including answering an active question or advice request first and waiting for explicit permission to start or resume proposed implementation when required. While that gate is pending, dispatch no mutations; pause running implementation workers at a safe boundary, collect their state, and resume only after explicit confirmation. Disclose completed or uninterruptible work without rolling it back automatically.
 
-After review, the parent/Sol fixes authorized findings and verifies the affected behavior, clearly distinguishing the reviewed snapshot from subsequent corrections. Do not automatically repeat a full review for corrections or routine checks, installation, commits, or follow-ups within the same task. If consequential uncertainty remains and another Astra pass is needed, explain the evidence gap and obtain user approval first; a user-requested additional review supplies that approval. Do not claim readiness while required evidence is missing.
+Before meaningful implementation, briefly explain the change, workflow effects, existing-user effects, and tradeoffs. Obtain agreement for undisclosed workflow changes or compatibility breaks. Preserve host permissions, read-only modes, and testing boundaries. A reviewer stays read-only; missing required evidence prevents a readiness claim.
 
-Model delegation requires actual host support and available models. If a requested model or agent is unavailable, disclose it and ask before substituting an explicitly required model. If selection was delegated to you, use an available suitable model and state the substitution. Never claim a routing change without an actual dispatch result. A skill cannot replace the parent model for the running turn.
-
-Report the route used and important findings briefly. These workflow controls are not a hard token cap or guaranteed savings. Evaluate observed corrections, time, and usage; do not promise success on the first attempt.
-
-## Progress updates
-
-For Codex and Claude Code, choose the progress interval at the start. Use 10% milestones of completed scope for normal tasks and 5% milestones for large, multi-stage tasks. Give brief done/next updates, such as "40% - permission checks complete. Checking failure handling next." Percentages are rough estimates of completed scope, not elapsed time, ETAs, or precise measurements. Explain revised estimates when scope changes.
-
-The parent owns one overall percentage in the user chat. Workers report actual milestones to the parent without competing percentages. When several milestones happen together, including on quick tasks, report only the latest reached milestone instead of inventing intermediate messages or activity. Do not report 100% until all requested work, including implementation, review, tests, and publication where requested, is actually complete. Disclose anything blocked or unfinished.
+Verify host/model support before dispatch. If an explicitly required model is unavailable, disclose it and ask before substitution. If model selection was delegated to the parent, use a suitable available model and state the substitution. Do not silently downgrade a required strong review to self-review. Report the actual route briefly; keep progress updates proportional to the work and follow applicable reporting instructions. This policy is not a hard usage cap or guaranteed saving. Existing sessions must reload it; installed profiles do not change the running parent model.

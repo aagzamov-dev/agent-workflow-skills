@@ -19,6 +19,7 @@ REPO = Path(__file__).resolve().parents[1]
 BLOCK_START = b'<!-- agent-workflow-skills:begin -->'
 BLOCK_END = b'<!-- agent-workflow-skills:end -->'
 BLOCK_MARKER = b'<!-- agent-workflow-skills:'
+PROFILE_NAMES = ('workflow-planner', 'workflow-reviewer', 'workflow-worker', 'workflow-light-worker')
 
 
 @dataclass
@@ -246,7 +247,7 @@ def make_plan(home, clients, skills, profiles, state, replacements):
                 plans.append(('skill', source, destination))
         if profiles:
             suffix = '.toml' if client == 'codex' else '.md'
-            for name in ('workflow-planner', 'workflow-reviewer', 'workflow-worker'):
+            for name in PROFILE_NAMES:
                 source = REPO / client / 'agents' / (name + suffix)
                 if not source.is_file():
                     raise RuntimeError(f'Missing profile: {source}')
@@ -321,7 +322,7 @@ def install(home, state_dir, clients, skills, profiles, state, replacements, che
             for client in clients:
                 agent_root = locations(home)[client][1]
                 suffix = '.toml' if client == 'codex' else '.md'
-                for name in ('workflow-planner', 'workflow-reviewer', 'workflow-worker'):
+                for name in PROFILE_NAMES:
                     filename = name + suffix
                     hashes[f'{client}/{filename}'] = digest(agent_root / filename)
         new_state = {

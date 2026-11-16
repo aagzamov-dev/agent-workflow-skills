@@ -103,6 +103,45 @@ class WorkflowTests(unittest.TestCase):
         self.command('install', ok=False)
         self.assertEqual(profile.read_text(), 'local profile customization')
 
+    def test_existing_install_adds_light_workers_and_tracks_future_conflicts(self):
+        self.command('install')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state = json.loads(state_file.read_text())
+        for client, suffix in (('codex', '.toml'), ('claude', '.md')):
+            filename = 'workflow-light-worker' + suffix
+            (self.home / f'.{client}/agents' / filename).unlink()
+            del state['profile_hashes'][f'{client}/{filename}']
+        state_file.write_text(json.dumps(state))
+        self.command('install', '--check')
+        self.assertFalse((self.home / '.codex/agents/workflow-light-worker.toml').exists())
+        self.command('install')
+        refreshed = json.loads(state_file.read_text())
+        for client, suffix in (('codex', '.toml'), ('claude', '.md')):
+            filename = 'workflow-light-worker' + suffix
+            destination = self.home / f'.{client}/agents' / filename
+            self.assertEqual(destination.read_bytes(), (self.repo / client / 'agents' / filename).read_bytes())
+            self.assertIn(f'{client}/{filename}', refreshed['profile_hashes'])
+            destination.write_text('Local customization')
+        self.command('install', ok=False)
+        self.assertEqual(state_file.read_text(), json.dumps(refreshed, indent=2) + '\n')
+        self.assertEqual((self.home / '.claude/agents/workflow-light-worker.md').read_text(), 'Local customization')
+
+    def test_existing_unmanaged_light_worker_blocks_refresh_before_any_changes(self):
+        self.command('install')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state = json.loads(state_file.read_text())
+        del state['profile_hashes']['codex/workflow-light-worker.toml']
+        state_file.write_text(json.dumps(state))
+        local = self.home / '.codex/agents/workflow-light-worker.toml'
+        local.write_text('Unmanaged personal profile')
+        reviewer = self.home / '.codex/agents/workflow-reviewer.toml'
+        previous = reviewer.read_bytes()
+        source = self.repo / 'codex/agents/workflow-reviewer.toml'
+        source.write_text(source.read_text().replace('"medium"', '"high"'))
+        self.command('install', ok=False)
+        self.assertEqual(reviewer.read_bytes(), previous)
+        self.assertEqual(local.read_text(), 'Unmanaged personal profile')
+
     def test_saved_selection_and_preflight(self):
         self.command('install', '--check', '--client', 'claude', '--without-profiles')
         self.assertFalse((self.home / '.claude').exists())
@@ -463,6 +502,10 @@ class WorkflowTests(unittest.TestCase):
         spec.loader.exec_module(module)
         state_dir = self.home / '.agent-workflow-skills'
         state = module.read_state(state_dir / 'install.json')
+        new_profile = self.home / '.codex/agents/workflow-light-worker.toml'
+        new_profile.unlink()
+        del state['profile_hashes']['codex/workflow-light-worker.toml']
+        module.atomic_write(state_dir / 'install.json', (json.dumps(state) + '\n').encode())
         profile = self.home / '.codex/agents/workflow-reviewer.toml'
         previous = profile.read_bytes()
         source = self.repo / 'codex/agents/workflow-reviewer.toml'
@@ -482,6 +525,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse(os.path.lexists(link))
         self.assertTrue((self.repo / 'skills/change-impact/SKILL.md').exists())
         self.assertEqual(profile.read_bytes(), previous)
+        self.assertFalse(new_profile.exists())
         self.assertEqual(module.read_state(state_dir / 'install.json'), state)
 
     def test_failed_state_write_restores_existing_entrypoint_and_removes_new_one(self):

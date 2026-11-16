@@ -1,15 +1,20 @@
 # Claude Code routing
 
-Use the installed `workflow-worker`, `workflow-planner`, and `workflow-reviewer` agents when available. Claude Code maps the workflow to Sonnet for implementation and Opus for consequential planning and independent final review. The Claude Code profiles cannot dispatch to Codex or Astra automatically. Personal profiles install under `~/.claude/agents/`.
+Select Sonnet as the usual parent in the client. The router cannot change a running parent's model. Use these installed profiles only when the task justifies delegation:
 
-The model aliases resolve according to the installed client and account. Verify availability. Preserve an explicitly selected version or model rather than silently replacing it with an alias.
+| Profile | Model | Purpose |
+| --- | --- | --- |
+| `workflow-light-worker` | `haiku` | Simple bounded implementation worth handing off |
+| `workflow-worker` | `sonnet` | Substantial bounded implementation when a worker is useful |
+| `workflow-planner` | `opus` | Unresolved consequential planning or explicit request |
+| `workflow-reviewer` | `opus` | One review for large/high-risk changes or an explicit review request |
 
-The current parent investigates and prepares; invoke the planner only for an unresolved consequential architecture or migration decision without an adequate parent plan, or an explicit request. Give its accepted conclusions to the worker. Every implementation task, including small, documentation, and configuration edits, gets one independent Opus review at the end, with depth matched to risk. Finish relevant tests, obvious fixes, and requested configuration or installation refresh first. The boundary is the agreed outcome, not each edit, check, installation, commit, or follow-up; do not combine unrelated work to evade review. Honor explicit review requests.
+Tiny edits and ordinary work normally stay with the Sonnet parent. The parent gathers context for explicit reviews before dispatching Opus; this preparation is not a duplicate full review. For small/ordinary implementation without an explicit review request, the parent checks the actual diff and relevant behavior itself. Reassess if scope or risk grows. Mode and the parent's model do not suppress a required independent review; read-only restrictions still apply.
 
-Use compact isolated reviewer context by default, without the full conversation: scope, acceptance criteria, constraints, separate staged and unstaged diffs, relevant untracked files, caller locations, and test evidence. Identify the reviewed base and snapshot; for branch reviews, include the diff against the agreed base. If evidence is incomplete or too large, provide complete scoped artifacts or narrow the review explicitly. Allow source inspection and evidence-led scope expansion, requesting missing Git or test evidence from the parent. Ask for concise findings without quotas or exhaustive tiny-change audits.
+Pass compact isolated context, not the full conversation. The parent supplies requirements, identified snapshot, separate staged/unstaged diffs, relevant untracked files and callers, and test evidence; add the agreed base and branch diff for branch reviews. Reviewers may inspect source and request missing evidence. Use the shared skill's escalation, authorization, and single-review rules. Each agent returns to the parent without further delegation. Profiles do not create a separate permission sandbox.
 
-The parent/Sonnet integrates authorized corrections and verifies affected behavior, distinguishing later corrections from the reviewed snapshot. Do not automatically repeat a full review. Another pass for unresolved consequential uncertainty requires explaining the gap and obtaining user approval; an explicit additional-review request is approval. Missing required evidence prevents a readiness claim. The planner and reviewer profiles expose read/search tools. The worker can edit and run commands subject to the host's permissions.
+Profiles install under `~/.claude/agents/`. Verify that aliases resolve to available models and preserve explicit model/version choices. Check client overrides and the actual dispatched model rather than assuming profile configuration proves selection. Claude profiles do not invoke Codex models. Haiku is the lightweight role; Fable is not configured by this policy. Do not invoke Opus or Fable automatically for routine planning. Planner/reviewer profiles have read/search tools; workers can edit and run commands subject to host permissions.
 
-Subagents should perform their assigned role without launching additional agents. If a shared skill is needed in an isolated worker context, provide its file location or relevant instructions explicitly. Do not assume the entire parent conversation is inherited.
+See [official subagent documentation](https://code.claude.com/docs/en/sub-agents) for aliases, model overrides, tool restrictions, and discovery.
 
-See [official subagent documentation](https://code.claude.com/docs/en/sub-agents) for model aliases, tool restrictions, and agent discovery.
+Re-running the existing install command refreshes copied profiles and adds the lightweight worker while preserving saved client/profile selections and refusing locally modified profiles. Reload instructions or start a fresh session; live discovery and model access require client verification.
