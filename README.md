@@ -14,12 +14,15 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [model-router](skills/model-router/SKILL.md) | Keep Sol/Sonnet as parent, delegate bounded work economically, and use stronger review for large or risky work | "Use model-router to implement this feature within my existing workflow." |
 | [unslop](skills/unslop/SKILL.md) | Build new screens, implement supplied designs, and polish UI using the current project's conventions | "Build this settings screen to fit the existing app." |
 | [explain-clearly](skills/explain-clearly/SKILL.md) | Explain in simple words, with useful diagrams and before/after comparisons directly in chat | "Explain how this works; I do not understand the current explanation." |
+| [code-simplification](skills/code-simplification/SKILL.md) | Write readable code from the first draft and simplify existing code while preserving behavior | "Make the order handler easy to follow." |
+| [api-and-interface-design](skills/api-and-interface-design/SKILL.md) | Establish the behavior callers depend on when changing a public interface or reproducing a feature in another service | "Reproduce the order endpoint in the new service." |
+| [test-driven-development](skills/test-driven-development/SKILL.md) | Verify changed behavior, bug fixes, and service replicas through their public entry points | "Check what happens if the order arrives twice." |
 
 Skills include their supporting references where needed. These are portable public instructions. Personal rules, project-specific skills, credentials, and unrelated installed skills belong in their own managed locations.
 
 Change Impact establishes whether implementation is authorized, clarifies consequential requirements, and explains a simple approach and meaningful downsides before work. Engineering Review independently assesses the result with depth matched to risk, concrete evidence, and practical design, scaling, and maintenance judgment. Both distinguish routine choices from decisions that need the user's answer, and discourage speculative complexity. These instructions guide model behavior; stronger results are not guaranteed, and existing chats need to reload changed instructions. Installation and update commands remain unchanged.
 
-Explain Clearly applies when the user asks for an explanation, why or how something works, a comparison or before/after, or says they do not understand. It answers the main question first, defines necessary terms, and uses concrete examples, small chat diagrams, or tables when helpful. It adapts the depth to the question rather than forcing a template or making every answer short. Explanations stay directly in chat; HTML, files, and external visuals are not generated unless requested. Invoke `$explain-clearly` in Codex or `/explain-clearly` in Claude Code explicitly if needed.
+Explain Clearly answers “explain this” in plain language and shows a flow diagram in chat for large tasks. Ask for “diagram mode” at any point, even for a small or medium task. For a symptom report, the agent investigates where the behavior first goes wrong, explains the evidence, and asks before fixing it. If the exact correction is already approved, it proceeds within that scope.
 
 Unslop applies to UI design work: new screens, pages, dialogs and components, supplied design implementation, and visual polish, including UI work within a larger feature. Requests such as "build a settings screen" or "do this design" do not need to name the skill. The managed global instructions direct both clients to read it before that work; backend-only and other nonvisual tasks are outside its scope. Invoke `$unslop` in Codex or `/unslop` in Claude Code explicitly if needed.
 
@@ -59,6 +62,15 @@ python scripts/workflow.py install --add-skill unslop --check
 python scripts/workflow.py install --add-skill unslop
 ```
 
+To add the three coding skills to an existing installation, preview the combined change and then install:
+
+```bash
+python scripts/workflow.py install --add-skill code-simplification --add-skill api-and-interface-design --add-skill test-driven-development --check
+python scripts/workflow.py install --add-skill code-simplification --add-skill api-and-interface-design --add-skill test-driven-development
+```
+
+The managed instructions select readability guidance when writing code, interface guidance for public contracts and replicas, and testing guidance for authorized behavior changes. A replica can use all three in one implementation. Select any of them individually with the same command.
+
 To add Explain Clearly to an existing installation while keeping the other saved choices:
 
 ```bash
@@ -68,7 +80,9 @@ python scripts/workflow.py install --add-skill explain-clearly
 
 If either canonical skill destination already contains a different `unslop`, compare it first, then add `--replace-skill unslop` to back it up and replace it. A separate legacy copy under `~/.codex/skills/unslop` is outside this installer's ownership: move it to a backup outside skill discovery before installing, preserving any customizations. Do not delete a directory link's target. Restart both clients after installation and check discovery; the installer does not test live client activation.
 
-Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. For selected skills, the block directs the client to read `model-router` on every request, `change-impact` before meaningful implementation, `unslop` before UI design work, and `explain-clearly` for explanation requests or confusion. Skipping a skill omits its directive. Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options; run `python scripts/workflow.py install` after pulling this revision to refresh older blocks, or use the existing update command. Client adherence still requires a fresh session or an explicit instruction reload and is not guaranteed by file installation alone.
+Install and refresh manage a short marked block in `~/.codex/AGENTS.md` or the nonempty `~/.codex/AGENTS.override.md` if it takes precedence, and in `~/.claude/CLAUDE.md` for Claude Code. The block activates the selected coding skills described above, model routing for each request, change-impact guidance before meaningful implementation, and Unslop for UI work. When Explain Clearly is selected, the block calls for plain-language explanations, a flow diagram for large tasks, and diagram mode on request at any size. Skipping a skill omits its directive.
+
+Existing instruction files are backed up before their first managed edit. Keep personal additions outside the markers. An unrecognized block, a modified managed block, or a missing block in a still-active managed file stops preflight until you reconcile it. An existing installation record continues to work with the same options. Run `python scripts/workflow.py install` after pulling this revision to refresh older blocks, or use the existing update command.
 
 Start a fresh client session after setup and verify skill and agent discovery. An existing session may still hold earlier instructions. Ask it to reread the global entrypoint and linked skills if you need to continue there, or restart and resume when the client supports it. Invoke `$change-impact` in Codex or `/change-impact` in Claude Code. The optional profiles are named `workflow-light-worker`, `workflow-worker`, `workflow-planner`, and `workflow-reviewer`.
 
@@ -177,5 +191,7 @@ Windows verification covers native directory junctions and the Git Bash copy sni
 - [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)
 
 ## License
+
+The three adapted coding skills credit Addy Osmani's [agent-skills](https://github.com/addyosmani/agent-skills). Each includes its original MIT notice.
 
 Repository code and original skills are MIT. See [LICENSE](LICENSE). The vendored [Unslop skill and its resources](skills/unslop/SKILL.md), adapted from [Damir Sokolovsky's unslop](https://github.com/heydamir/unslop), remain under [CC BY 4.0](skills/unslop/LICENSE); retain their attribution and adaptation notice when redistributing them.

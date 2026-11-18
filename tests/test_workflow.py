@@ -1,5 +1,6 @@
 """Isolated filesystem and local-Git integration checks; no AI clients are launched."""
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -13,6 +14,12 @@ from unittest.mock import patch
 
 
 SOURCE = Path(__file__).resolve().parents[1]
+NEW_SKILL_TRIGGERS = {
+    'code-simplification': 'Before writing or editing code, including a first draft',
+    'api-and-interface-design': 'public API or replicating a feature across services',
+    'test-driven-development': 'authorized implementation involving business behavior, a bug regression, or replica parity',
+}
+ENTRYPOINTS = {'.codex/AGENTS.md': '~/.agents/skills', '.claude/CLAUDE.md': '~/.claude/skills'}
 
 
 class WorkflowTests(unittest.TestCase):
@@ -319,15 +326,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
 
     def test_skipping_all_bootstrap_skills_leaves_entrypoints_alone(self):
-        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
-                     '--skip-skill', 'unslop', '--skip-skill', 'explain-clearly')
+        bootstrap = ('model-router', 'change-impact', 'unslop', 'explain-clearly', *NEW_SKILL_TRIGGERS)
+        self.command('install', *(arg for skill in bootstrap for arg in ('--skip-skill', skill)))
         self.assertFalse((self.home / '.codex/AGENTS.md').exists())
         self.assertFalse((self.home / '.claude/CLAUDE.md').exists())
 
     def test_unslop_only_manages_both_client_entrypoints(self):
-        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
-                     '--skip-skill', 'engineering-review', '--skip-skill', 'prompt-craft',
-                     '--skip-skill', 'explain-clearly', '--without-profiles')
+        self.install_only_skill('unslop')
         for relative, skill_root in (('.codex/AGENTS.md', '~/.agents/skills'),
                                      ('.claude/CLAUDE.md', '~/.claude/skills')):
             content = (self.home / relative).read_text()
@@ -338,18 +343,73 @@ class WorkflowTests(unittest.TestCase):
         self.command('install')
 
     def test_explanation_only_manages_both_client_entrypoints(self):
-        self.command('install', '--skip-skill', 'model-router', '--skip-skill', 'change-impact',
-                     '--skip-skill', 'engineering-review', '--skip-skill', 'prompt-craft',
-                     '--skip-skill', 'unslop', '--without-profiles')
+        self.install_only_skill('explain-clearly')
         state = json.loads((self.home / '.agent-workflow-skills/install.json').read_text())
         self.assertEqual(state['skills'], ['explain-clearly'])
         for relative, skill_root in (('.codex/AGENTS.md', '~/.agents/skills'),
                                      ('.claude/CLAUDE.md', '~/.claude/skills')):
             content = (self.home / relative).read_text()
-            self.assertIn(skill_root + '/explain-clearly/SKILL.md', content)
-            self.assertNotIn('model-router/SKILL.md', content)
-            self.assertNotIn('unslop/SKILL.md', content)
+            self.assertIn('Whenever you explain something, read `' + skill_root + '/explain-clearly/SKILL.md`', content)
+            self.assertIn('Use diagram mode when requested at any task size', content)
+            self.assertIn('proactively show a simple flow diagram for large tasks', content)
+            self.assertEqual(content.count('/SKILL.md'), 1)
         self.command('install')
+
+    def install_only_skill(self, selected):
+        available = sorted(path.parent.name for path in (self.repo / 'skills').glob('*/SKILL.md'))
+        skip = [arg for skill in available if skill != selected for arg in ('--skip-skill', skill)]
+        self.command('install', '--without-profiles', *skip)
+
+    def test_fresh_install_links_new_skills_and_generates_scoped_directives(self):
+        self.command('install', '--without-profiles')
+        for relative, skill_root in ENTRYPOINTS.items():
+            content = (self.home / relative).read_text()
+            for skill, trigger in NEW_SKILL_TRIGGERS.items():
+                path = f'{skill_root}/{skill}/SKILL.md'
+                directive, = [line for line in content.splitlines() if path in line]
+                self.assertIn(trigger, directive)
+                self.assertEqual((self.home / path.removeprefix('~/')).read_bytes(),
+                                 (self.repo / 'skills' / skill / 'SKILL.md').read_bytes())
+
+    def test_only_new_skill_manages_entrypoints(self):
+        self.install_only_skill('code-simplification')
+        for relative, skill_root in ENTRYPOINTS.items():
+            content = (self.home / relative).read_text()
+            self.assertIn(f'{skill_root}/code-simplification/SKILL.md', content)
+            self.assertEqual(content.count('/SKILL.md'), 1)
+
+    def test_existing_install_requires_explicit_multi_add_for_new_skills(self):
+        skip = [arg for skill in NEW_SKILL_TRIGGERS for arg in ('--skip-skill', skill)]
+        self.command('install', '--client', 'codex', '--without-profiles', *skip)
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state_before = state_file.read_bytes()
+        self.command('install')
+        self.assertEqual(state_file.read_bytes(), state_before)
+        self.assertFalse(NEW_SKILL_TRIGGERS.keys() & set(json.loads(state_before)['skills']))
+        path = self.home / '.codex/AGENTS.md'
+        path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\n')
+        previous = path.read_bytes()
+        for skill in NEW_SKILL_TRIGGERS:
+            self.assertNotIn(f'/{skill}/SKILL.md'.encode(), previous)
+            self.assertFalse((self.home / '.agents/skills' / skill).exists())
+        add = [arg for skill in NEW_SKILL_TRIGGERS for arg in ('--add-skill', skill)]
+        self.command('install', *add, '--check')
+        self.assertEqual(state_file.read_bytes(), state_before)
+        self.assertEqual(path.read_bytes(), previous)
+        self.command('install', *add)
+        refreshed = path.read_bytes()
+        self.assertEqual(refreshed.split(b'<!-- agent-workflow-skills:begin -->')[0],
+                         previous.split(b'<!-- agent-workflow-skills:begin -->')[0])
+        self.assertTrue(refreshed.endswith(b'Private suffix\n'))
+        old_state = json.loads(state_before)
+        new_state = json.loads(state_file.read_bytes())
+        self.assertEqual(new_state['clients'], old_state['clients'])
+        self.assertEqual(new_state['profiles'], old_state['profiles'])
+        self.assertEqual(set(new_state['skills']), set(old_state['skills']) | NEW_SKILL_TRIGGERS.keys())
+        for skill in NEW_SKILL_TRIGGERS:
+            self.assertEqual(refreshed.count(f'/{skill}/SKILL.md'.encode()), 1)
+            self.assertTrue((self.home / '.agents/skills' / skill / 'SKILL.md').is_file())
+        self.assertFalse((self.home / '.claude').exists())
 
     def test_skipped_explanation_stays_unselected_on_refresh(self):
         self.command('install', '--skip-skill', 'explain-clearly')
@@ -417,48 +477,60 @@ class WorkflowTests(unittest.TestCase):
         for folder in ('.agents', '.claude'):
             self.assertFalse((self.home / folder / 'skills/explain-clearly').exists())
 
-    def test_refresh_upgrades_old_explanation_blocks(self):
-        installer = self.repo / 'scripts/workflow.py'
-        current = installer.read_text()
-        old = current.replace(
-            "    if 'explain-clearly' in skills:\n" + next(
-                line + '\n' for line in current.splitlines()
-                if 'lines.append' in line and '/explain-clearly/SKILL.md' in line), '')
-        self.assertNotEqual(old, current)
-        installer.write_text(old)
+    def seed_legacy_blocks(self, skill, old_directive=None):
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state = json.loads(state_file.read_bytes())
+        for relative, skill_root in ENTRYPOINTS.items():
+            path = self.home / relative
+            lines = path.read_bytes().splitlines(keepends=True)
+            skill_path = f'{skill_root}/{skill}/SKILL.md'
+            directive, = [line for line in lines if skill_path.encode() in line]
+            replacement = old_directive.format(path=skill_path).encode() + b'\n' if old_directive else b''
+            block = b''.join(lines).replace(directive, replacement)
+            path.write_bytes(b'Private prefix\r\n' + block + b'Private suffix\r\n')
+            state['entrypoint_blocks'][relative]['hash'] = hashlib.sha256(block).hexdigest()
+        state_file.write_text(json.dumps(state), encoding='utf-8')
+
+    def test_refresh_adds_explanation_directive_for_older_blocks(self):
         self.command('install', '--without-profiles')
-        paths = [self.home / name for name in ('.codex/AGENTS.md', '.claude/CLAUDE.md')]
-        for path in paths:
-            self.assertNotIn(b'/explain-clearly/SKILL.md', path.read_bytes())
-            path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\r\n')
-        installer.write_text(current)
+        self.seed_legacy_blocks('explain-clearly')
         self.command('install')
-        for path in paths:
-            content = path.read_bytes()
+        for relative in ENTRYPOINTS:
+            content = (self.home / relative).read_bytes()
             self.assertTrue(content.startswith(b'Private prefix\r\n'))
             self.assertTrue(content.endswith(b'Private suffix\r\n'))
             self.assertEqual(content.count(b'/explain-clearly/SKILL.md'), 1)
 
+    def test_refresh_upgrades_old_explanation_wording(self):
+        skip = [arg for skill in NEW_SKILL_TRIGGERS for arg in ('--skip-skill', skill)]
+        self.command('install', '--without-profiles', *skip)
+        self.seed_legacy_blocks(
+            'explain-clearly',
+            '- When the user asks for an explanation, why or how something works, a comparison or before/after, '
+            'or says they do not understand, read `{path}` and apply it. Use simple words and helpful diagrams '
+            'or before/after directly in chat.',
+        )
+        self.command('install')
+        for relative in ENTRYPOINTS:
+            content = (self.home / relative).read_bytes()
+            self.assertTrue(content.startswith(b'Private prefix\r\n'))
+            self.assertTrue(content.endswith(b'Private suffix\r\n'))
+            self.assertEqual(content.count(b'/explain-clearly/SKILL.md'), 1)
+            self.assertIn(b'Whenever you explain something', content)
+            for skill in NEW_SKILL_TRIGGERS:
+                self.assertNotIn(f'/{skill}/SKILL.md'.encode(), content)
+
     def test_refresh_upgrades_old_blocks_without_touching_private_text(self):
         # Model the previous installer, which selected Unslop without its directive.
-        installer = self.repo / 'scripts/workflow.py'
-        current = installer.read_text()
-        old = current.replace(
-            "    if 'unslop' in skills:\n" + next(
-                line + '\n' for line in current.splitlines()
-                if 'lines.append' in line and '/unslop/SKILL.md' in line), '')
-        self.assertNotEqual(old, current)
-        installer.write_text(old)
         self.command('install')
+        self.seed_legacy_blocks('unslop')
         state_file = self.home / '.agent-workflow-skills/install.json'
         old_state = json.loads(state_file.read_text())
         self.assertIn('unslop', old_state['skills'])
         paths = [self.home / relative for relative in ('.codex/AGENTS.md', '.claude/CLAUDE.md')]
         for path in paths:
             self.assertNotIn(b'/unslop/SKILL.md', path.read_bytes())
-            path.write_bytes(b'Private prefix\r\n' + path.read_bytes() + b'Private suffix\r\n')
         before = [path.read_bytes() for path in paths]
-        installer.write_text(current)
         self.command('install', '--check')
         self.assertEqual([path.read_bytes() for path in paths], before)
         self.assertEqual(json.loads(state_file.read_text()), old_state)
