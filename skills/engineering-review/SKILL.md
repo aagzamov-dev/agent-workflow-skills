@@ -40,6 +40,8 @@ Apply the relevant checks:
 
 ## 4. Challenge findings and verify efficiently
 
+For a reported bug, follow the input or event to the first incorrect decision or state change. Check at least the plausible explanation that would lead to a materially different fix, if one exists. Distinguish an underlying defect from its visible symptom and explain any remaining uncertainty. Give the user the smallest correction that addresses the demonstrated cause, plus a way to reproduce the original failure. Follow the active approval rules before editing.
+
 - Before reporting a defect, trace a realistic trigger and inspect guards, callers, configuration, and tests that could disprove it. Explain the failure mechanism and affected user. A missing test alone does not establish a defect; a clear source-proven failure need not be reproduced to be reported.
 - Start with targeted repository searches and established checks. Batch independent reads; broaden only when evidence requires it. Do not install a large toolchain merely to simulate the wrong platform.
 - Prefer verification of public behavior and important failure/policy transitions. A regression test should fail for the original behavior. Do not add implementation-shaped assertions or unnecessary tests for low-impact edits. Review alone does not authorize creating tests or changing files.
