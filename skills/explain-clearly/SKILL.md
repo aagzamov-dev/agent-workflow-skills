@@ -1,6 +1,6 @@
 ---
 name: explain-clearly
-description: Explain a topic, code, change, or decision in simple words directly in chat. Use when the user asks to explain, asks why or how something works, requests a comparison or before/after, or says they do not understand. Reframe confusing answers with concrete examples and small diagrams when useful; do not apply a fixed explanation format to unrelated tasks.
+description: Explain topics, code, changes, and decisions in plain language in chat. Use for every explanation request, including “explain this,” confusion, comparisons, and diagram mode at any task size. Show the flow proactively for large tasks.
 ---
 
 # Explain Clearly
@@ -17,6 +17,10 @@ Help the user understand the idea and its practical consequence. Keep the explan
 - Start with enough detail to make the idea understandable, then add relevant depth. A short answer can be enough; a difficult topic may need several small steps. Do not remove important conditions or risks merely to shorten it.
 
 ## Choose a useful format
+
+For large tasks, draw the flow in chat early enough to help the user follow the work. Large tasks often involve several interacting parts, a migration, or a change in who owns data. Use actual component names and plain verbs. Point to where behavior changes and what the user will see. If the flow changes, update the diagram at that point.
+
+“Diagram mode” or “show me the flow” requests a diagram at any time, including during small and medium tasks. A short text flow is enough for a simple relationship. For “explain this,” start with what the referenced item means in practice, then walk through one concrete example if it helps. If the first explanation was confusing, use a different example or representation.
 
 Use the smallest format that makes the relationship clear. Do not force every answer to contain headings, a table, a diagram, and a summary.
 
@@ -53,4 +57,4 @@ After restart:  App -> new settings -> new screen behavior
 
 This explains the practical difference without hiding the condition that makes it true.
 
-An explanation request does not authorize code edits, installations, browser use, publishing, or other actions. Continue already authorized work when applicable; this skill changes how you explain it, not the task's permissions.
+Follow the active authorization rules when the user asks a question during implementation. A diagram you volunteer as part of already approved work is an update and lets that work continue.
