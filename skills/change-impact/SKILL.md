@@ -20,10 +20,14 @@ Help the user choose knowingly before consequential work. Be concise for small c
 | --- | --- |
 | "Would offline mode help?" | Explain benefits, synchronization conflicts, and maintenance costs; do not implement it. |
 | "Add automatic cleanup," with retention rules still unclear after inspection | Ask what may be deleted and when before implementing deletion. |
+| "Saving sometimes creates two orders." | Investigate the symptom. Explain the cause and the proposed fix, then ask before editing. |
+| "Apply the exact fix we just agreed on." | Proceed within that approval and verify the original failure case. |
 | "Implement the agreed pagination. Why this approach?" | Answer the question, ask whether you may proceed with implementation, and wait for explicit permission. |
 | "Explain why this uses cursors, then implement." | Explain first, ask whether you may proceed, and wait for explicit permission. |
 
 ## 2. Explain the approach and meaningful downsides
+
+For a reported symptom, trace where the observed behavior first diverges from the intended behavior. Use callers, tests, or an authorized reproduction to check the explanation. Tell the user what establishes the cause or what evidence would distinguish the remaining possibilities. Propose a fix where the fault originates and mention how to verify it. A symptom report authorizes investigation. An approved, specific correction authorizes that edit. A newly discovered cause requiring a different fix needs a new decision.
 
 Before meaningful edits, describe the intended outcome and the smallest design that fully meets agreed requirements, protects existing behavior, and handles realistic failure and growth. Reuse established boundaries and services. Justify added abstractions, dependencies, services, configuration, caches, or retries with concrete benefits that outweigh their complexity and operational cost. Do not build for hypothetical scale or remove required safeguards to make a solution look simple.
 
