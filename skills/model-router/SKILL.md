@@ -9,6 +9,8 @@ Use Sol as the usual Codex parent and Sonnet as the usual Claude Code parent. Th
 
 ## Choose the smallest useful route
 
+An explicit division of work takes precedence over the defaults below. When the user chooses the current model for decisions and Sol for code, keep planning, explanations and integration decisions with the selected parent. Use a Sol worker for code edits unless the parent is already verified as Sol. If the requested model is unavailable, explain the limitation and ask before substituting. Apply the agreed review policy after implementation.
+
 Classify after a brief inspection of the request and relevant source. Consider uncertainty, coupled behavior, sensitive boundaries, and verification difficulty, not just line or file count. Reassess if the actual changes become substantially larger or riskier.
 
 | Work | Implementation | Final check |
