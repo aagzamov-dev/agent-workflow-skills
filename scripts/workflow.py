@@ -34,6 +34,10 @@ SKILL_DIRECTIVES = {
         'proactively show a simple flow diagram for large tasks.'
     ),
     'code-simplification': 'Before writing or editing code, including a first draft, read `{path}` and apply it.',
+    'codebase-design': (
+        'Before implementing a feature that introduces or changes business rules or responsibility for data, '
+        'read `{path}` and apply it. Keep small edits proportional.'
+    ),
     'api-and-interface-design': (
         'Before designing or changing a public API or replicating a feature across services, read `{path}` and apply it.'
     ),

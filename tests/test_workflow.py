@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1]
 NEW_SKILL_TRIGGERS = {
+    'codebase-design': 'feature that introduces or changes business rules or responsibility for data',
     'code-simplification': 'Before writing or editing code, including a first draft',
     'api-and-interface-design': 'public API or replicating a feature across services',
     'test-driven-development': 'authorized implementation involving business behavior, a bug regression, or replica parity',
@@ -377,6 +378,19 @@ class WorkflowTests(unittest.TestCase):
             content = (self.home / relative).read_text()
             self.assertIn(f'{skill_root}/code-simplification/SKILL.md', content)
             self.assertEqual(content.count('/SKILL.md'), 1)
+
+    def test_codebase_design_only_links_both_clients_and_refreshes(self):
+        self.install_only_skill('codebase-design')
+        self.command('install')
+        state = json.loads((self.home / '.agent-workflow-skills/install.json').read_text())
+        self.assertEqual(state['skills'], ['codebase-design'])
+        for relative, skill_root in ENTRYPOINTS.items():
+            content = (self.home / relative).read_text()
+            self.assertEqual(content.count('/SKILL.md'), 1)
+            self.assertIn(f'{skill_root}/codebase-design/SKILL.md', content)
+            for filename in ('SKILL.md', 'LICENSE'):
+                self.assertEqual((self.home / skill_root.removeprefix('~/') / 'codebase-design' / filename).read_bytes(),
+                                 (self.repo / 'skills/codebase-design' / filename).read_bytes())
 
     def test_existing_install_requires_explicit_multi_add_for_new_skills(self):
         skip = [arg for skill in NEW_SKILL_TRIGGERS for arg in ('--skip-skill', skill)]

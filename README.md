@@ -15,6 +15,7 @@ Use the shared skills in Codex and Claude Code. Optional agent profiles assign i
 | [unslop](skills/unslop/SKILL.md) | Build new screens, implement supplied designs, and polish UI using the current project's conventions | "Build this settings screen to fit the existing app." |
 | [explain-clearly](skills/explain-clearly/SKILL.md) | Explain in simple words, with useful diagrams and before/after comparisons directly in chat | "Explain how this works; I do not understand the current explanation." |
 | [code-simplification](skills/code-simplification/SKILL.md) | Write readable code from the first draft and simplify existing code while preserving behavior | "Make the order handler easy to follow." |
+| [codebase-design](skills/codebase-design/SKILL.md) | Keep business rules and data responsibilities with clear owners across mutation paths | "Add cancellation rules to the order workflow." |
 | [api-and-interface-design](skills/api-and-interface-design/SKILL.md) | Establish the behavior callers depend on when changing a public interface or reproducing a feature in another service | "Reproduce the order endpoint in the new service." |
 | [test-driven-development](skills/test-driven-development/SKILL.md) | Verify changed behavior, bug fixes, and service replicas through their public entry points | "Check what happens if the order arrives twice." |
 
@@ -70,6 +71,15 @@ python scripts/workflow.py install --add-skill code-simplification --add-skill a
 ```
 
 The managed instructions select readability guidance when writing code, interface guidance for public contracts and replicas, and testing guidance for authorized behavior changes. A replica can use all three in one implementation. Select any of them individually with the same command.
+
+To add Codebase Design to an existing installation:
+
+```bash
+python scripts/workflow.py install --add-skill codebase-design --check
+python scripts/workflow.py install --add-skill codebase-design
+```
+
+Codebase Design applies before implementing features that introduce or change business rules or responsibility for data. It identifies the existing class, module, or function that owns a rule, checks affected mutation paths and invariants, and favors small interfaces that hide meaningful complexity. Small edits need only a brief ownership check. Existing commands and saved selections remain supported; adding this skill preserves the other choices and needs no new dependency. Fresh installations include it unless skipped. Restart or reload instructions in both clients to pick up the new directive; installation does not verify live activation.
 
 To add Explain Clearly to an existing installation while keeping the other saved choices:
 
@@ -193,5 +203,7 @@ Windows verification covers native directory junctions and the Git Bash copy sni
 ## License
 
 The three adapted coding skills credit Addy Osmani's [agent-skills](https://github.com/addyosmani/agent-skills). Each includes its original MIT notice.
+
+[Codebase Design](skills/codebase-design/SKILL.md) adapts Matt Pocock's [skills](https://github.com/mattpocock/skills) under its [MIT notice](skills/codebase-design/LICENSE).
 
 Repository code and original skills are MIT. See [LICENSE](LICENSE). The vendored [Unslop skill and its resources](skills/unslop/SKILL.md), adapted from [Damir Sokolovsky's unslop](https://github.com/heydamir/unslop), remain under [CC BY 4.0](skills/unslop/LICENSE); retain their attribution and adaptation notice when redistributing them.
