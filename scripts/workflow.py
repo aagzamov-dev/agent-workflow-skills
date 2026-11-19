@@ -23,6 +23,10 @@ PROFILE_NAMES = ('workflow-planner', 'workflow-reviewer', 'workflow-worker', 'wo
 SKILL_DIRECTIVES = {
     'model-router': 'For every request, read `{path}` and apply its routing policy.',
     'change-impact': 'Before meaningful implementation, read `{path}`.',
+    'engineering-review': (
+        'For every review request, including plain "review", read `{path}` and apply its review coverage, '
+        'four-category scorecard, and final commit-readiness verdict, even when agent profiles are disabled.'
+    ),
     'unslop': (
         'Before any UI design work, including new screens, design implementation, or visual polish within '
         "a feature, read `{path}` and apply it. Follow the current project's components and visual "

@@ -1,11 +1,11 @@
 ---
 name: engineering-review
-description: Review software changes and investigate difficult bugs using concrete evidence, risk-based depth, and practical design judgment. Assess correctness, security, lifecycle, compatibility, user experience, realistic scaling, and unnecessary complexity. Use for requested reviews, difficult investigations, and final review of substantial implementation; review alone does not authorize edits.
+description: Review software changes and investigate difficult bugs using concrete evidence, risk-based depth, and practical design judgment. Assess correctness, security, lifecycle, compatibility, user experience, realistic scaling, and unnecessary complexity. Use for requested reviews (including plain "review"), difficult investigations, and final review of substantial implementation; review alone does not authorize edits.
 ---
 
 # Engineering Review
 
-Assess the actual user workflow and recommend the smallest sufficient corrections. Choose the smallest design that meets agreed requirements, protects existing behavior, and handles realistic failure and growth. Broad consideration does not require a whole-project audit or a long report.
+Assess the actual user workflow and recommend the smallest sufficient corrections. Choose the smallest design that meets agreed requirements, protects existing behavior, and handles realistic failure and growth. Broad consideration does not require a whole-project audit or a long report. Apply the review coverage and report below to every review, including a plain "review" request and reviews with limited evidence.
 
 ## 1. Establish intent, scope, and evidence
 
@@ -31,6 +31,8 @@ Apply the relevant checks:
 
 ## 3. Judge design, scaling, and maintenance
 
+- Trace each changed business rule and its data to the existing class, module, or function that owns it. Inspect all relevant write paths (including alternate entry points, imports, jobs, and direct mutations) for consistent invariants and validation. Judge encapsulation and OOP by whether responsibilities and state changes stay clear and safe; functions or modules may be the right owner. Do not demand classes, inheritance, patterns, or SOLID ceremony without a concrete benefit.
+- Evaluate code quality and readability: clear names, visible control flow and side effects, cohesive responsibilities, duplication, coupling, and unnecessary layers.
 - Evaluate responsibility boundaries, data ownership, coupling, and the cost of likely changes. Preserve working architecture, shared services, components, icons, tokens, and existing paths where they fit. Name good decisions worth keeping with evidence.
 - Ask whether each new abstraction, dependency, service, configuration option, cache, or retry earns its implementation and operational cost through a concrete requirement or demonstrated benefit. Prefer removing needless layers over proposing a rewrite. Simplicity still includes necessary security, recovery, failure handling, and acceptance criteria.
 - Assess realistic workload and resource bounds where relevant: query patterns, pagination, repeated network work, decode sizes, eager objects, repeated settings writes, blocking work, queue growth, concurrency, and resource ownership. Consider whether per-item timers, players, or subscriptions create avoidable work compared with an existing shared service.
@@ -50,8 +52,33 @@ For a reported bug, follow the input or event to the first incorrect decision or
 
 ## 5. Report actionable conclusions
 
-- Lead with readiness within the verified scope: ready, not ready, or insufficient evidence. Order findings by realistic impact and likelihood. Separate confirmed defects, suspected risks, missing requirements/evidence, and optional improvements; do not invent findings to fill categories.
+- Put blockers and serious findings first, then state readiness within the reviewed scope: ready, not ready, or insufficient evidence. If none are demonstrated, say so without claiming the project is bug-free. Order findings by realistic impact and likelihood. Separate confirmed defects, suspected risks, missing requirements/evidence, and optional improvements; do not invent findings to fill categories.
 - For each defect, give severity, file/line evidence, trigger, failure mechanism, user impact, and the smallest sufficient correction. Explain a correction's material tradeoff. Reserve blockers for concrete consequences; label unmeasured performance concerns as risks.
 - Briefly state what was checked, what remains unverified, and the specific next check needed. Do not hide gaps behind unrelated passing tests or imply target-platform success from source inspection. For implementation follow-up, distinguish implemented behavior or a candidate fix from reproduced and verified behavior.
-- Recommend what to keep, fix, remove, or simplify where useful. Give a numeric score only when asked, separating engineering quality from completeness against requirements. Leave unrelated findings unchanged unless fixing them is authorized.
+- Recommend what to keep, fix, remove, or simplify where useful. Leave unrelated findings unchanged unless fixing them is authorized.
 - Review verdicts grant no permission to edit, commit, deploy, or change scope. Preserve applicable repository and user reporting requirements.
+
+### Required scorecard
+
+Every review reports exactly one integer from 1 to 10 in each of these four categories, with a brief evidence-based reason and any material limitation next to each score:
+
+| Category | Evidence to assess |
+| --- | --- |
+| Bugs/correctness | Intended behavior, realistic failure triggers, guards, security, state/lifecycle, and compatibility where affected. |
+| Code quality/readability | Names, control flow, cohesion, duplication, coupling, and complexity justified by the requirement. |
+| Ownership and OOP | The existing class/module/function owning each rule and its data, encapsulation, invariants across all relevant write paths, and useful boundaries without OOP ceremony. |
+| Tests/verification | Relevant behavior and regression coverage, failure/policy cases, actual check results, and remaining gaps. Include affected API/caller contracts, errors, side effects, and compatibility when relevant. |
+
+Use the same anchored scale for every category; choose an integer within a band based on the demonstrated evidence:
+
+| Score | Anchor |
+| --- | --- |
+| 1–2 | Little or no demonstrated assurance; critical failures or foundational evidence gaps prevent a reliable assessment. |
+| 3–4 | Major demonstrated weaknesses or material unverified behavior; substantial correction or verification needed. |
+| 5–6 | Basic behavior/design supported, with meaningful weaknesses or coverage gaps. |
+| 7–8 | Strong evidence for the reviewed scope; bounded issues or verification limits remain. |
+| 9–10 | Thorough evidence for the relevant behavior, boundaries, and failure cases; no material unresolved issue within that category and scope. A 10 requires especially comprehensive evidence, not perfection outside the scope. |
+
+Do not omit a category, use N/A, give a range, average the scores, or add an overall numeric score. Limited evidence still requires four integers: score the assurance actually demonstrated, explicitly flag what could not be assessed, and identify the next check. A low evidence-based score does not establish a defect. Passing unrelated tests, attractive code, or high scores in other categories cannot override a blocker or material uncertainty. Scores describe this snapshot and scope, not certification of the whole project.
+
+End the review with `Can I commit? Yes`, `Can I commit? No`, or `Can I commit? Not yet confirmed`, followed by a short reason. Use Yes only when the intended commit snapshot has sufficient evidence and no unresolved blocker; No for a demonstrated blocker; Not yet confirmed when missing evidence prevents a decision. If staged and unstaged work differ, give their readiness separately in this last verdict (for example, `Can I commit? No for staged changes; Not yet confirmed for unstaged changes — ...`). Never let an unstaged correction certify a broken staged commit. This is a readiness assessment, not permission to run Git commands.

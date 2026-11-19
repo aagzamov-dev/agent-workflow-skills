@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1]
 NEW_SKILL_TRIGGERS = {
+    'engineering-review': 'For every review request, including plain "review"',
     'codebase-design': 'feature that introduces or changes business rules or responsibility for data',
     'code-simplification': 'Before writing or editing code, including a first draft',
     'api-and-interface-design': 'public API or replicating a feature across services',
@@ -378,6 +379,32 @@ class WorkflowTests(unittest.TestCase):
             content = (self.home / relative).read_text()
             self.assertIn(f'{skill_root}/code-simplification/SKILL.md', content)
             self.assertEqual(content.count('/SKILL.md'), 1)
+
+    def test_review_only_activates_without_profiles_and_refreshes_old_blocks(self):
+        self.install_only_skill('engineering-review')
+        state_file = self.home / '.agent-workflow-skills/install.json'
+        state = json.loads(state_file.read_text())
+        self.assertFalse(state['profiles'])
+        for relative, skill_root in ENTRYPOINTS.items():
+            path = self.home / relative
+            content = path.read_text()
+            self.assertIn('including plain "review"', content)
+            self.assertIn(f'{skill_root}/engineering-review/SKILL.md', content)
+            self.assertFalse((self.home / relative.split('/')[0] / 'agents').exists())
+            # Simulate the preceding installer, which selected this skill but
+            # generated no entrypoint directive for it.
+            path.unlink()
+        state['entrypoint_blocks'] = {}
+        state_file.write_text(json.dumps(state), encoding='utf-8')
+        self.command('install', '--check')
+        self.assertTrue(all(not (self.home / relative).exists() for relative in ENTRYPOINTS))
+        self.command('install')
+        for relative, skill_root in ENTRYPOINTS.items():
+            self.assertIn(f'{skill_root}/engineering-review/SKILL.md', (self.home / relative).read_text())
+        refreshed = json.loads(state_file.read_text())
+        self.assertEqual(refreshed['skills'], state['skills'])
+        self.assertEqual(refreshed['clients'], state['clients'])
+        self.assertFalse(refreshed['profiles'])
 
     def test_codebase_design_only_links_both_clients_and_refreshes(self):
         self.install_only_skill('codebase-design')
